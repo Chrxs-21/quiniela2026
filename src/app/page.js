@@ -51,7 +51,7 @@ export default function LoginPage() {
             color: 'var(--text-secondary)',
             fontSize: '0.95rem',
           }}>
-            Predice los resultados y compite con tus amigos
+            ¿Tienes lo que se necesita para ser el ganador?
           </p>
         </div>
 
@@ -100,7 +100,7 @@ export default function LoginPage() {
           color: 'var(--text-secondary)',
           fontSize: '0.75rem',
         }}>
-          Al ingresar aceptas que esto es una quiniela entre amigos 🙂
+          Obra de Chrxs 
         </p>
 
       </div>
