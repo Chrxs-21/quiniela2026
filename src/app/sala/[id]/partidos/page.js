@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
-const RONDAS_ORDER = ['Round of 32', 'Quarter Finals', 'Semi Finals', 'Third Place', 'Final']
+const RONDAS_ORDER = ['Round of 16', 'Round of 8', 'Quarter Finals', 'Semi Finals', 'Third Place', 'Final']
 const RONDAS_LABEL = {
-  'Round of 32': 'Ronda de 32',
+  'Round of 16': '16vos de Final',
+  'Round of 8': '8vos de Final',
   'Quarter Finals': 'Cuartos de Final',
   'Semi Finals': 'Semifinales',
   'Third Place': 'Tercer Lugar',
@@ -33,6 +34,12 @@ export default function PartidosPage() {
   const [knockoutUnlocked, setKnockoutUnlocked] = useState(false)
   const [modalPuntosGrupos, setModalPuntosGrupos] = useState(false)
   const [modalPuntosKnockout, setModalPuntosKnockout] = useState(false)
+  const [bracketPreds, setBracketPreds] = useState({})
+  const [modalKnockout, setModalKnockout] = useState(null)
+  const [predHomeK, setPredHomeK] = useState(0)
+  const [predAwayK, setPredAwayK] = useState(0)
+  const [ganadorManual, setGanadorManual] = useState(null)
+  const [guardandoKnockout, setGuardandoKnockout] = useState(false)
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -83,9 +90,23 @@ export default function PartidosPage() {
       .eq('room_id', id)
       .eq('user_id', user.id)
 
-    const predsMap = {}
+      const predsMap = {}
     preds?.forEach(p => { predsMap[p.match_id] = p })
     setPredicciones(predsMap)
+
+    // Cargar bracket de knockout en memoria
+    const bracketMap = {}
+    preds?.filter(p => {
+      const match = matches?.find(m => m.id === p.match_id)
+      return match?.phase === 'knockout'
+    }).forEach(p => {
+      bracketMap[p.match_id] = {
+        home: p.pred_home_score,
+        away: p.pred_away_score,
+        winner: p.predicted_winner,
+      }
+    })
+    setBracketPreds(bracketMap)
     setLoading(false)
   }
 
@@ -148,7 +169,153 @@ useEffect(() => {
     setGuardando(false)
     setModalPartido(null)
   }
+  // Dado un match_number, retorna el equipo que el usuario predijo como ganador
+    function getWinnerPred(matchNumber) {
+    const partido = Object.values(knockout).flat().find(p => p.match_number === matchNumber)
+    if (!partido) return null
+    const pred = bracketPreds[partido.id]
+    if (!pred) return null
+    return pred.winner
+  }
 
+  function resolverEquipo(slot, profundidad = 0) {
+    if (!slot || profundidad > 10) return slot
+    const tipo = slot[0]
+    const num = parseInt(slot.slice(1))
+    if (isNaN(num)) return slot
+
+    if (tipo === 'W') {
+      const winner = getWinnerPred(num)
+      if (winner) {
+        // El winner podría ser a su vez un slot sin resolver, resolver recursivamente
+        return resolverEquipo(winner, profundidad + 1)
+      }
+      return slot
+    }
+
+    if (tipo === 'L') {
+      const partido = Object.values(knockout).flat().find(p => p.match_number === num)
+      if (!partido) return slot
+      const pred = bracketPreds[partido.id]
+      if (!pred) return slot
+      const homeResuelto = resolverEquipo(partido.home_team, profundidad + 1)
+      const awayResuelto = resolverEquipo(partido.away_team, profundidad + 1)
+      if (pred.winner === homeResuelto) return awayResuelto
+      if (pred.winner === awayResuelto) return homeResuelto
+      return slot
+    }
+
+    return slot
+  }
+
+  function abrirModalKnockout(partido) {
+    if (!knockoutUnlocked) return
+    if (partido.status === 'locked' || partido.status === 'finished') return
+
+    // Verificar que ambos equipos estén confirmados
+    const homeResuelto = resolverEquipo(partido.home_team)
+    const awayResuelto = resolverEquipo(partido.away_team)
+    const homeEsSlot = homeResuelto.startsWith('W') || homeResuelto.startsWith('L')
+    const awayEsSlot = awayResuelto.startsWith('W') || awayResuelto.startsWith('L')
+
+    if (homeEsSlot || awayEsSlot) return
+
+    const pred = bracketPreds[partido.id]
+    setPredHomeK(pred?.home ?? 0)
+    setPredAwayK(pred?.away ?? 0)
+    setGanadorManual(pred?.winner ?? null)
+    setModalKnockout(partido)
+  }
+
+  function calcularGanadorAuto(home, away, homeTeam, awayTeam) {
+    if (home > away) return homeTeam
+    if (away > home) return awayTeam
+    return null // empate → manual
+  }
+
+  // Limpia predicciones de rondas posteriores si cambia un resultado previo
+  function limpiarCascada(matchNumber) {
+    const rondasOrden = ['Round of 32', 'Quarter Finals', 'Semi Finals', 'Final']
+    const allKnockout = Object.values(knockout).flat()
+
+    // Encontrar todos los partidos que dependen de este resultado
+    const afectados = new Set()
+    let porProcesar = [matchNumber]
+
+    while (porProcesar.length > 0) {
+      const actual = porProcesar.pop()
+      const wSlot = `W${actual}`
+      const lSlot = `L${actual}`
+
+      allKnockout.forEach(p => {
+        if (p.home_team === wSlot || p.away_team === wSlot ||
+            p.home_team === lSlot || p.away_team === lSlot) {
+          if (!afectados.has(p.match_number)) {
+            afectados.add(p.match_number)
+            porProcesar.push(p.match_number)
+          }
+        }
+      })
+    }
+
+    setBracketPreds(prev => {
+      const nuevo = { ...prev }
+      allKnockout.forEach(p => {
+        if (afectados.has(p.match_number)) {
+          delete nuevo[p.id]
+        }
+      })
+      return nuevo
+    })
+  }
+
+  async function handleGuardarKnockout() {
+    if (!modalKnockout) return
+    const ganador = ganadorManual || calcularGanadorAuto(predHomeK, predAwayK, modalKnockout.home_team, modalKnockout.away_team)
+    if (predHomeK === predAwayK && !ganadorManual) return // empate sin ganador manual
+
+    setGuardandoKnockout(true)
+
+    // Limpiar cascada si cambia el ganador
+    const predAnterior = bracketPreds[modalKnockout.id]
+    if (predAnterior && predAnterior.winner !== ganador) {
+      limpiarCascada(modalKnockout.match_number)
+    }
+
+    // Actualizar bracket en memoria
+    setBracketPreds(prev => ({
+      ...prev,
+      [modalKnockout.id]: {
+        home: predHomeK,
+        away: predAwayK,
+        winner: ganador,
+      }
+    }))
+
+    // Persistir en Supabase
+    const existing = predicciones[modalKnockout.id]
+    if (existing) {
+      await supabase.from('predictions').update({
+        pred_home_score: predHomeK,
+        pred_away_score: predAwayK,
+        predicted_winner: ganador,
+      }).eq('id', existing.id)
+    } else {
+      await supabase.from('predictions').insert({
+        room_id: id,
+        user_id: currentUser.id,
+        match_id: modalKnockout.id,
+        pred_home_score: predHomeK,
+        pred_away_score: predAwayK,
+        predicted_winner: ganador,
+      })
+    }
+
+    await loadData()
+    setGuardandoKnockout(false)
+    setModalKnockout(null)
+    setGanadorManual(null)
+  }
   function getEstadoPartido(partido) {
     if (partido.status === 'finished') return 'finished'
     if (partido.status === 'locked') return 'locked'
@@ -515,7 +682,7 @@ useEffect(() => {
       {tab === 'knockout' && (
         <div style={{ position: 'relative' }}>
 
-          {/* Overlay de bloqueado */}
+          {/* Overlay bloqueado */}
           {!knockoutUnlocked && (
             <div style={{
               position: 'absolute',
@@ -531,21 +698,11 @@ useEffect(() => {
               minHeight: '400px',
             }}>
               <span style={{ fontSize: '3rem' }}>🔒</span>
-              <p style={{
-                color: 'var(--text-primary)',
-                fontWeight: '700',
-                fontSize: '1.25rem',
-                textAlign: 'center',
-              }}>
+              <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.25rem', textAlign: 'center' }}>
                 Eliminatorias bloqueadas
               </p>
-              <p style={{
-                color: 'var(--text-secondary)',
-                fontSize: '0.9rem',
-                textAlign: 'center',
-                maxWidth: '300px',
-              }}>
-                Se desbloqueará automáticamente cuando se confirmen los clasificados o el 2 de Julio 2026
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', textAlign: 'center', maxWidth: '300px' }}>
+                Se desbloqueará cuando se confirmen los clasificados o el 2 de Julio 2026
               </p>
             </div>
           )}
@@ -568,9 +725,8 @@ useEffect(() => {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.75rem',
-                  minWidth: '200px',
+                  minWidth: '190px',
                 }}>
-                  {/* Header de ronda */}
                   <p style={{
                     color: 'var(--text-secondary)',
                     fontSize: '0.75rem',
@@ -583,7 +739,6 @@ useEffect(() => {
                     {RONDAS_LABEL[ronda]}
                   </p>
 
-                  {/* Partidos de esta ronda */}
                   <div style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -594,27 +749,30 @@ useEffect(() => {
                   }}>
                     {knockout[ronda]?.map(partido => {
                       const estado = getEstadoPartido(partido)
-                      const pred = predicciones[partido.id]
+                      const predK = bracketPreds[partido.id]
+                      const homeResuelto = resolverEquipo(partido.home_team)
+                      const awayResuelto = resolverEquipo(partido.away_team)
+                      const tienePred = !!predK
                       const bloqueado = !knockoutUnlocked || estado === 'locked' || estado === 'finished'
+
+                      const borderColor = estado === 'finished' ? '#4a3872' :
+                                         tienePred ? '#166534' :
+                                         'var(--border)'
 
                       return (
                         <div
                           key={partido.id}
-                          onClick={() => !bloqueado && abrirModal(partido)}
+                          onClick={() => !bloqueado && abrirModalKnockout(partido)}
                           style={{
                             backgroundColor: 'var(--bg-card)',
-                            border: `1px solid ${getEstadoColor(estado)}`,
+                            border: `1px solid ${borderColor}`,
                             borderRadius: '0.75rem',
                             padding: '0.75rem 1rem',
                             cursor: bloqueado ? 'default' : 'pointer',
                             transition: 'border-color 0.2s',
                           }}
-                          onMouseOver={e => {
-                            if (!bloqueado) e.currentTarget.style.borderColor = 'var(--accent)'
-                          }}
-                          onMouseOut={e => {
-                            e.currentTarget.style.borderColor = getEstadoColor(estado)
-                          }}
+                          onMouseOver={e => { if (!bloqueado) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                          onMouseOut={e => { e.currentTarget.style.borderColor = borderColor }}
                         >
                           {/* Equipo local */}
                           <div style={{
@@ -624,29 +782,21 @@ useEffect(() => {
                             marginBottom: '0.4rem',
                           }}>
                             <span style={{
-                              color: 'var(--text-primary)',
+                              color: predK?.winner === homeResuelto ? 'var(--success)' : 'var(--text-primary)',
                               fontSize: '0.8rem',
-                              fontWeight: '600',
+                              fontWeight: predK?.winner === homeResuelto ? '700' : '600',
                             }}>
-                              {partido.home_team}
+                              {predK?.winner === homeResuelto && '→ '}
+                              {homeResuelto}
                             </span>
-                            {(estado === 'predicted' || estado === 'finished') && (
-                              <span style={{
-                                color: 'var(--text-primary)',
-                                fontWeight: '700',
-                                fontSize: '0.9rem',
-                              }}>
-                                {estado === 'predicted' ? pred?.pred_home_score : pred?.pred_home_score ?? '-'}
+                            {tienePred && (
+                              <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>
+                                {predK.home}
                               </span>
                             )}
                           </div>
 
-                          {/* Divider */}
-                          <div style={{
-                            height: '1px',
-                            backgroundColor: 'var(--border)',
-                            margin: '0.4rem 0',
-                          }} />
+                          <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
 
                           {/* Equipo visitante */}
                           <div style={{
@@ -655,36 +805,41 @@ useEffect(() => {
                             alignItems: 'center',
                           }}>
                             <span style={{
-                              color: 'var(--text-primary)',
+                              color: predK?.winner === awayResuelto ? 'var(--success)' : 'var(--text-primary)',
                               fontSize: '0.8rem',
-                              fontWeight: '600',
+                              fontWeight: predK?.winner === awayResuelto ? '700' : '600',
                             }}>
-                              {partido.away_team}
+                              {predK?.winner === awayResuelto && '→ '}
+                              {awayResuelto}
                             </span>
-                            {(estado === 'predicted' || estado === 'finished') && (
-                              <span style={{
-                                color: 'var(--text-primary)',
-                                fontWeight: '700',
-                                fontSize: '0.9rem',
-                              }}>
-                                {estado === 'predicted' ? pred?.pred_away_score : pred?.pred_away_score ?? '-'}
+                            {tienePred && (
+                              <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>
+                                {predK.away}
                               </span>
                             )}
                           </div>
 
                           {/* Estado */}
                           <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
-                            {estado === 'pending' && knockoutUnlocked && (
-                              <span style={{ color: 'var(--accent)', fontSize: '0.7rem' }}>+ Predecir</span>
-                            )}
-                            {estado === 'predicted' && (
+                            {!tienePred && knockoutUnlocked && estado !== 'locked' && estado !== 'finished' && (() => {
+                              const homeR = resolverEquipo(partido.home_team)
+                              const awayR = resolverEquipo(partido.away_team)
+                              const pendiente = homeR.startsWith('W') || homeR.startsWith('L') ||
+                                               awayR.startsWith('W') || awayR.startsWith('L')
+                              return pendiente
+                                ? <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>⏳ Equipos por definir</span>
+                                : <span style={{ color: 'var(--accent)', fontSize: '0.7rem' }}>+ Predecir</span>
+                            })()}
+                            {tienePred && estado !== 'finished' && (
                               <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✅ Guardado</span>
                             )}
                             {estado === 'locked' && (
                               <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>🔒 Cerrado</span>
                             )}
-                            {estado === 'finished' && pred && (
-                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{pred.points_earned ?? '?'} pts</span>
+                            {estado === 'finished' && (
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                                {predicciones[partido.id]?.points_earned ?? '?'} pts
+                              </span>
                             )}
                           </div>
                         </div>
@@ -693,6 +848,184 @@ useEffect(() => {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal predicción knockout */}
+      {modalKnockout && (
+        <div
+          onClick={() => { setModalKnockout(null); setGanadorManual(null) }}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+            zIndex: 50,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: '1.5rem',
+              padding: '2rem',
+              width: '100%',
+              maxWidth: '360px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1.5rem',
+            }}
+          >
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                {modalKnockout.round} · #{modalKnockout.match_number}
+              </p>
+              <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
+                {resolverEquipo(modalKnockout.home_team)} vs {resolverEquipo(modalKnockout.away_team)}
+              </p>
+            </div>
+
+            {/* Selector de marcador */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1.5rem',
+            }}>
+              {[
+                { value: predHomeK, setValue: (v) => { setPredHomeK(v); setGanadorManual(null) }, label: resolverEquipo(modalKnockout.home_team) },
+                { value: predAwayK, setValue: (v) => { setPredAwayK(v); setGanadorManual(null) }, label: resolverEquipo(modalKnockout.away_team) },
+              ].map((equipo, i) => (
+                <div key={i} style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.75rem',
+                }}>
+                  <span style={{
+                    color: 'var(--text-primary)',
+                    fontWeight: '600',
+                    fontSize: '0.85rem',
+                    textAlign: 'center',
+                    maxWidth: '80px',
+                  }}>
+                    {equipo.label}
+                  </span>
+                  <button
+                    onClick={() => equipo.setValue(Math.min(equipo.value + 1, 20))}
+                    style={{
+                      width: '40px', height: '40px',
+                      backgroundColor: 'var(--accent)',
+                      border: 'none', borderRadius: '0.5rem',
+                      color: 'white', fontSize: '1.25rem',
+                      cursor: 'pointer', fontWeight: '700',
+                    }}
+                  >+</button>
+                  <span style={{
+                    color: 'var(--text-primary)',
+                    fontWeight: '700',
+                    fontSize: '2.5rem',
+                    minWidth: '48px',
+                    textAlign: 'center',
+                  }}>
+                    {equipo.value}
+                  </span>
+                  <button
+                    onClick={() => equipo.setValue(Math.max(equipo.value - 1, 0))}
+                    style={{
+                      width: '40px', height: '40px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.5rem',
+                      color: 'var(--text-primary)',
+                      fontSize: '1.25rem',
+                      cursor: 'pointer', fontWeight: '700',
+                    }}
+                  >-</button>
+                </div>
+              ))}
+            </div>
+
+            {/* Selector manual si hay empate */}
+            {predHomeK === predAwayK && (
+              <div style={{
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: '0.75rem',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem',
+              }}>
+                <p style={{
+                  color: 'var(--warning)',
+                  fontSize: '0.82rem',
+                  fontWeight: '600',
+                  textAlign: 'center',
+                }}>
+                  ⚠️ Empate en 120min → ¿Quién avanza en tiempo extra?
+                </p>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  {[resolverEquipo(modalKnockout.home_team), resolverEquipo(modalKnockout.away_team)].map(equipo => (
+                    <button
+                      key={equipo}
+                      onClick={() => setGanadorManual(equipo)}
+                      style={{
+                        flex: 1,
+                        backgroundColor: ganadorManual === equipo ? 'var(--accent)' : 'var(--bg-card)',
+                        color: ganadorManual === equipo ? 'white' : 'var(--text-secondary)',
+                        border: `1px solid ${ganadorManual === equipo ? 'var(--accent)' : 'var(--border)'}`,
+                        borderRadius: '0.5rem',
+                        padding: '0.6rem',
+                        fontSize: '0.8rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {equipo}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button
+                onClick={handleGuardarKnockout}
+                disabled={guardandoKnockout || (predHomeK === predAwayK && !ganadorManual)}
+                style={{
+                  backgroundColor: (guardandoKnockout || (predHomeK === predAwayK && !ganadorManual))
+                    ? 'var(--border)' : 'var(--accent)',
+                  color: 'var(--text-primary)',
+                  border: 'none',
+                  borderRadius: '0.75rem',
+                  padding: '0.875rem',
+                  fontSize: '1rem',
+                  fontWeight: '600',
+                  cursor: (guardandoKnockout || (predHomeK === predAwayK && !ganadorManual)) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {guardandoKnockout ? 'Guardando...' : predHomeK === predAwayK && !ganadorManual ? 'Selecciona quién avanza' : '✅ Guardar Predicción'}
+              </button>
+              <button
+                onClick={() => { setModalKnockout(null); setGanadorManual(null) }}
+                style={{
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '0.75rem',
+                  padding: '0.875rem',
+                  fontSize: '0.95rem',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>

@@ -25,7 +25,7 @@ export async function middleware(request) {
     }
   )
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 console.log('Middleware - pathname:', request.nextUrl.pathname)
 console.log('Middleware - user:', user?.id)
 console.log('Middleware - authError:', authError)
@@ -46,10 +46,6 @@ console.log('Middleware - authError:', authError)
       .select('id')
       .eq('id', user.id)
       .single()
-
-    console.log('User:', user.id)
-    console.log('Profile:', profile)
-    console.log('Profile error:', profileError)
 
     if (!profile) {
       return NextResponse.redirect(new URL('/onboarding', request.url))
