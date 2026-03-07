@@ -231,7 +231,7 @@ async function handleEliminarSala() {
         </div>
 
         {/* Botones de navegación */}
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <button
             onClick={() => router.push(`/sala/${id}/partidos`)}
             style={{
@@ -303,6 +303,25 @@ async function handleEliminarSala() {
             🗑️ Eliminar sala
             </button>
         )}
+
+                  {esAdmin && (
+            <button
+              onClick={() => router.push(`/sala/${id}/admin`)}
+              style={{
+                width: '100%',
+                backgroundColor: 'transparent',
+                color: 'var(--text-secondary)',
+                border: '1px dashed var(--border)',
+                borderRadius: '0.75rem',
+                padding: '0.875rem',
+                fontSize: '0.9rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+              }}
+            >
+              ⚙️ Panel Admin
+            </button>
+          )}
         </div>    
         {/* Fase actual */}
         <div style={{
