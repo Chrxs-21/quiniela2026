@@ -31,6 +31,8 @@ export default function PartidosPage() {
   const [currentUser, setCurrentUser] = useState(null)
   const [sala, setSala] = useState(null)
   const [knockoutUnlocked, setKnockoutUnlocked] = useState(false)
+  const [modalPuntosGrupos, setModalPuntosGrupos] = useState(false)
+  const [modalPuntosKnockout, setModalPuntosKnockout] = useState(false)
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -91,6 +93,22 @@ export default function PartidosPage() {
     async function init() { await loadData() }
     init()
   }, [id])
+
+useEffect(() => {
+  const timer = setTimeout(() => {
+    const vioGrupos = localStorage.getItem('vio_puntos_grupos')
+    const vioKnockout = localStorage.getItem('vio_puntos_knockout')
+    if (!vioGrupos && tab === 'groups') {
+      setModalPuntosGrupos(true)
+      localStorage.setItem('vio_puntos_grupos', 'true')
+    }
+    if (!vioKnockout && tab === 'knockout') {
+      setModalPuntosKnockout(true)
+      localStorage.setItem('vio_puntos_knockout', 'true')
+    }
+  }, 100)
+  return () => clearTimeout(timer)
+}, [tab])
 
   function abrirModal(partido) {
     if (!knockoutUnlocked && partido.phase === 'knockout') return
@@ -235,6 +253,35 @@ export default function PartidosPage() {
             {t.label}
           </button>
         ))}
+      </div>
+
+      {/* Botón sistema de puntos */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        padding: '0.75rem 1.5rem 0',
+        backgroundColor: 'var(--bg-card)',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <button
+          onClick={() => tab === 'groups' ? setModalPuntosGrupos(true) : setModalPuntosKnockout(true)}
+          style={{
+            backgroundColor: 'transparent',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            fontSize: '0.8rem',
+            cursor: 'pointer',
+            padding: '0.5rem 1rem',
+            borderRadius: '0.5rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+          }}
+          onMouseOver={e => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          📋 Ver sistema de puntos
+        </button>
       </div>
 
       {/* =================== FASE DE GRUPOS =================== */}
@@ -785,6 +832,267 @@ export default function PartidosPage() {
           </div>
         </div>
       )}
+      {/* Modal puntos fase de grupos */}
+{modalPuntosGrupos && (
+  <div
+    onClick={() => setModalPuntosGrupos(false)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem',
+      zIndex: 60,
+    }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: '1.5rem',
+        padding: '2rem',
+        width: '100%',
+        maxWidth: '380px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.25rem',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⚽</div>
+        <h2 style={{
+          color: 'var(--text-primary)',
+          fontWeight: '700',
+          fontSize: '1.25rem',
+          marginBottom: '0.25rem',
+        }}>
+          Sistema de Puntos
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          Fase de Grupos
+        </p>
+      </div>
+
+      {[
+        { pts: 5, icon: '🎯', titulo: 'Resultado Exacto', desc: 'Predijiste 2-1 y fue 2-1' },
+        { pts: 3, icon: '✅', titulo: 'Ganador + Goles de un equipo', desc: 'Predijiste 2-1, fue 2-0 (ganador y goles locales)' },
+        { pts: 2, icon: '👍', titulo: 'Solo tendencia correcta', desc: 'Predijiste 2-1, fue 3-0 (solo acertaste ganador)' },
+        { pts: 0, icon: '❌', titulo: 'Incorrecto', desc: 'Predijiste 2-1, fue 0-1' },
+      ].map(item => (
+        <div
+          key={item.pts}
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '0.75rem',
+            padding: '0.875rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+          }}
+        >
+          <span style={{ fontSize: '1.5rem' }}>{item.icon}</span>
+          <div style={{ flex: 1 }}>
+            <p style={{
+              color: 'var(--text-primary)',
+              fontWeight: '600',
+              fontSize: '0.9rem',
+            }}>
+              {item.titulo}
+            </p>
+            <p style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.78rem',
+            }}>
+              {item.desc}
+            </p>
+          </div>
+          <span style={{
+            color: item.pts === 5 ? 'var(--success)' :
+                   item.pts === 3 ? 'var(--warning)' :
+                   item.pts === 2 ? 'var(--accent)' :
+                   '#f87171',
+            fontWeight: '700',
+            fontSize: '1.25rem',
+            minWidth: '40px',
+            textAlign: 'right',
+          }}>
+            {item.pts}pts
+          </span>
+        </div>
+      ))}
+
+      <button
+        onClick={() => setModalPuntosGrupos(false)}
+        style={{
+          backgroundColor: 'var(--accent)',
+          color: 'var(--text-primary)',
+          border: 'none',
+          borderRadius: '0.75rem',
+          padding: '0.875rem',
+          fontSize: '1rem',
+          fontWeight: '600',
+          cursor: 'pointer',
+          width: '100%',
+        }}
+      >
+        ¡Entendido! 🚀
+      </button>
+    </div>
+  </div>
+)}
+
+{/* Modal puntos eliminatorias */}
+{modalPuntosKnockout && (
+  <div
+    onClick={() => setModalPuntosKnockout(false)}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      backgroundColor: 'rgba(0,0,0,0.7)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '1rem',
+      zIndex: 60,
+    }}
+  >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        backgroundColor: 'var(--bg-card)',
+        border: '1px solid var(--border)',
+        borderRadius: '1.5rem',
+        padding: '2rem',
+        width: '100%',
+        maxWidth: '380px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '1.25rem',
+      }}
+    >
+      <div style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🏆</div>
+        <h2 style={{
+          color: 'var(--text-primary)',
+          fontWeight: '700',
+          fontSize: '1.25rem',
+          marginBottom: '0.25rem',
+        }}>
+          Sistema de Puntos
+        </h2>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>
+          Fase de Eliminatorias
+        </p>
+      </div>
+
+      {[
+        { pts: 5, icon: '🎯', titulo: 'Resultado Exacto', desc: 'Predijiste 2-1 y fue 2-1' },
+        { pts: 3, icon: '✅', titulo: 'Ganador + Goles de un equipo', desc: 'Predijiste 2-1, fue 2-0 (ganador y goles locales)' },
+        { pts: 2, icon: '👍', titulo: 'Solo tendencia correcta', desc: 'Predijiste 2-1, fue 3-0 (solo acertaste ganador)' },
+        { pts: 0, icon: '❌', titulo: 'Incorrecto', desc: 'Predijiste 2-1, fue 0-1' },
+      ].map(item => (
+        <div
+          key={item.pts}
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '0.75rem',
+            padding: '0.875rem 1rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1rem',
+          }}
+        >
+          <span style={{ fontSize: '1.5rem' }}>{item.icon}</span>
+          <div style={{ flex: 1 }}>
+            <p style={{
+              color: 'var(--text-primary)',
+              fontWeight: '600',
+              fontSize: '0.9rem',
+            }}>
+              {item.titulo}
+            </p>
+            <p style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.78rem',
+            }}>
+              {item.desc}
+            </p>
+          </div>
+          <span style={{
+            color: item.pts === 5 ? 'var(--success)' :
+                   item.pts === 3 ? 'var(--warning)' :
+                   item.pts === 2 ? 'var(--accent)' :
+                   '#f87171',
+            fontWeight: '700',
+            fontSize: '1.25rem',
+            minWidth: '40px',
+            textAlign: 'right',
+          }}>
+            {item.pts}pts
+          </span>
+        </div>
+      ))}
+
+      <div style={{
+        backgroundColor: 'var(--bg-secondary)',
+        borderRadius: '0.75rem',
+        padding: '0.875rem 1rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.5rem',
+      }}>
+        <p style={{
+          color: 'var(--warning)',
+          fontSize: '0.82rem',
+          fontWeight: '600',
+        }}>
+          ⚠️ Reglas especiales de eliminatorias:
+        </p>
+        <p style={{
+          color: 'var(--text-secondary)',
+          fontSize: '0.8rem',
+          lineHeight: '1.5',
+        }}>
+          • Los partidos pueden durar hasta <strong style={{ color: 'var(--text-primary)' }}>120 minutos</strong> (tiempo extra incluido).
+        </p>
+        <p style={{
+          color: 'var(--text-secondary)',
+          fontSize: '0.8rem',
+          lineHeight: '1.5',
+        }}>
+          • Los puntos se calculan con el resultado al final de los <strong style={{ color: 'var(--text-primary)' }}>120 minutos</strong>. Los penales <strong style={{ color: 'var(--text-primary)' }}>no cuentan</strong>.
+        </p>
+        <p style={{
+          color: 'var(--text-secondary)',
+          fontSize: '0.8rem',
+          lineHeight: '1.5',
+        }}>
+          • Si predices empate y el partido va a penales, tu predicción de empate <strong style={{ color: 'var(--text-primary)' }}>sí cuenta</strong> si el marcador quedó empatado en 120 min.
+        </p>
+      </div>
+
+      <button
+        onClick={() => setModalPuntosKnockout(false)}
+        style={{
+          backgroundColor: 'var(--accent)',
+          color: 'var(--text-primary)',
+          border: 'none',
+          borderRadius: '0.75rem',
+          padding: '0.875rem',
+          fontSize: '1rem',
+          fontWeight: '600',
+          cursor: 'pointer',
+          width: '100%',
+        }}
+      >
+        ¡Entendido! 🚀
+      </button>
+    </div>
+  </div>
+)}
     </main>
   )
 }
