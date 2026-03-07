@@ -25,15 +25,36 @@ export async function middleware(request) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+console.log('Middleware - pathname:', request.nextUrl.pathname)
+console.log('Middleware - user:', user?.id)
+console.log('Middleware - authError:', authError)
 
   // Si no hay sesión y trata de entrar a rutas protegidas → al login
-  if (!user && request.nextUrl.pathname.startsWith('/dashboard')) {
+  if (!user && (
+    request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/sala') ||
+    request.nextUrl.pathname.startsWith('/onboarding')
+  )) {
     return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // Si hay sesión y trata de entrar al login → al dashboard
+  // Si hay sesión y va al login → verificar si tiene perfil
   if (user && request.nextUrl.pathname === '/') {
+    const { data: profile, error: profileError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    console.log('User:', user.id)
+    console.log('Profile:', profile)
+    console.log('Profile error:', profileError)
+
+    if (!profile) {
+      return NextResponse.redirect(new URL('/onboarding', request.url))
+    }
+
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
@@ -41,5 +62,7 @@ export async function middleware(request) {
 }
 
 export const config = {
-  matcher: ['/', '/dashboard/:path*', '/sala/:path*', '/onboarding'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }

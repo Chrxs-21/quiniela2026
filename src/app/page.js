@@ -1,9 +1,32 @@
 'use client'
 
+import { useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const supabase = createClient()
+  const router = useRouter()
+
+  useEffect(() => {
+    async function checkSession() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: profile } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', user.id)
+          .single()
+
+        if (profile) {
+          router.push('/dashboard')
+        } else {
+          router.push('/onboarding')
+        }
+      }
+    }
+    checkSession()
+  }, [])
 
   async function handleGoogleLogin() {
     await supabase.auth.signInWithOAuth({
@@ -35,8 +58,6 @@ export default function LoginPage() {
         flexDirection: 'column',
         gap: '1.5rem',
       }}>
-
-        {/* Emoji y título */}
         <div>
           <div style={{ fontSize: '4rem', marginBottom: '0.5rem' }}>🏆</div>
           <h1 style={{
@@ -51,11 +72,10 @@ export default function LoginPage() {
             color: 'var(--text-secondary)',
             fontSize: '0.95rem',
           }}>
-            ¿Tienes lo que se necesita para ser el ganador?
+            Predice los resultados y compite con tus amigos
           </p>
         </div>
 
-        {/* Banderas decorativas */}
         <div style={{
           fontSize: '1.75rem',
           letterSpacing: '0.25rem',
@@ -64,7 +84,6 @@ export default function LoginPage() {
           🇺🇸 🇲🇽 🇧🇷 🇦🇷 🇫🇷 🇩🇪 🇪🇸 🇵🇹
         </div>
 
-        {/* Botón de Google */}
         <button
           onClick={handleGoogleLogin}
           style={{
@@ -95,14 +114,12 @@ export default function LoginPage() {
           Continuar con Google
         </button>
 
-        {/* Footer */}
         <p style={{
           color: 'var(--text-secondary)',
           fontSize: '0.75rem',
         }}>
-          Obra de Chrxs 
+          App de Chrxs
         </p>
-
       </div>
     </main>
   )
