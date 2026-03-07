@@ -39,7 +39,7 @@ export default function DashboardPage() {
         )
       `)
       .eq('user_id', user.id)
-      .order('joined_at', { ascending: false })
+      .order('joined_at', { ascending: true })
 
     setProfile(profileData)
     setRooms(roomsData || [])

@@ -4,12 +4,23 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 
+const RONDAS_ORDER = ['Round of 32', 'Quarter Finals', 'Semi Finals', 'Third Place', 'Final']
+const RONDAS_LABEL = {
+  'Round of 32': 'Ronda de 32',
+  'Quarter Finals': 'Cuartos de Final',
+  'Semi Finals': 'Semifinales',
+  'Third Place': 'Tercer Lugar',
+  'Final': 'Final',
+}
+
 export default function PartidosPage() {
   const supabase = createClient()
   const router = useRouter()
   const { id } = useParams()
 
+  const [tab, setTab] = useState('groups')
   const [grupos, setGrupos] = useState({})
+  const [knockout, setKnockout] = useState({})
   const [predicciones, setPredicciones] = useState({})
   const [grupoSeleccionado, setGrupoSeleccionado] = useState(null)
   const [modalPartido, setModalPartido] = useState(null)
@@ -18,39 +29,61 @@ export default function PartidosPage() {
   const [loading, setLoading] = useState(true)
   const [guardando, setGuardando] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const [sala, setSala] = useState(null)
+  const [knockoutUnlocked, setKnockoutUnlocked] = useState(false)
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return router.push('/')
     setCurrentUser(user)
 
-    // Cargar partidos de grupos
+    // Cargar sala para verificar desbloqueo
+    const { data: salaData } = await supabase
+      .from('rooms')
+      .select('*')
+      .eq('id', id)
+      .single()
+    setSala(salaData)
+
+    // Verificar si knockout está desbloqueado
+    const fechaDesbloqueo = new Date('2026-07-02')
+    const hoy = new Date()
+    const unlocked = salaData?.knockout_unlocked || hoy >= fechaDesbloqueo
+    setKnockoutUnlocked(unlocked)
+
+    // Cargar todos los partidos
     const { data: matches } = await supabase
       .from('matches')
       .select('*')
-      .eq('phase', 'group')
       .order('match_number', { ascending: true })
 
-    // Agrupar por grupo
+    // Separar grupos y knockout
     const grouped = {}
-    matches?.forEach(match => {
-      if (!grouped[match.group_name]) grouped[match.group_name] = []
-      grouped[match.group_name].push(match)
-    })
-    setGrupos(grouped)
+    const knockoutByRound = {}
 
-    // Cargar predicciones del usuario en esta sala
+    matches?.forEach(match => {
+      if (match.phase === 'group') {
+        if (!grouped[match.group_name]) grouped[match.group_name] = []
+        grouped[match.group_name].push(match)
+      } else {
+        if (!knockoutByRound[match.round]) knockoutByRound[match.round] = []
+        knockoutByRound[match.round].push(match)
+      }
+    })
+
+    setGrupos(grouped)
+    setKnockout(knockoutByRound)
+
+    // Cargar predicciones
     const { data: preds } = await supabase
       .from('predictions')
       .select('*')
       .eq('room_id', id)
       .eq('user_id', user.id)
 
-    // Convertir a objeto por match_id para acceso rápido
     const predsMap = {}
     preds?.forEach(p => { predsMap[p.match_id] = p })
     setPredicciones(predsMap)
-
     setLoading(false)
   }
 
@@ -60,6 +93,7 @@ export default function PartidosPage() {
   }, [id])
 
   function abrirModal(partido) {
+    if (!knockoutUnlocked && partido.phase === 'knockout') return
     const pred = predicciones[partido.id]
     setPredHome(pred ? pred.pred_home_score : 0)
     setPredAway(pred ? pred.pred_away_score : 0)
@@ -73,7 +107,6 @@ export default function PartidosPage() {
     const existing = predicciones[modalPartido.id]
 
     if (existing) {
-      // Actualizar predicción existente
       await supabase
         .from('predictions')
         .update({
@@ -82,7 +115,6 @@ export default function PartidosPage() {
         })
         .eq('id', existing.id)
     } else {
-      // Crear nueva predicción
       await supabase
         .from('predictions')
         .insert({
@@ -164,282 +196,460 @@ export default function PartidosPage() {
           color: 'var(--text-primary)',
           fontSize: '1rem',
         }}>
-          {grupoSeleccionado ? `Grupo ${grupoSeleccionado}` : '⚽ Fase de Grupos'}
+          ⚽ Partidos
         </span>
         <div style={{ width: '60px' }} />
       </nav>
 
+      {/* Tabs */}
       <div style={{
-        maxWidth: '680px',
-        margin: '0 auto',
-        padding: '2rem 1.5rem',
+        backgroundColor: 'var(--bg-card)',
+        borderBottom: '1px solid var(--border)',
+        padding: '0 1.5rem',
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '0',
       }}>
+        {[
+          { key: 'groups', label: '⚽ Fase de Grupos' },
+          { key: 'knockout', label: '🏆 Eliminatorias' },
+        ].map(t => (
+          <button
+            key={t.key}
+            onClick={() => {
+              setTab(t.key)
+              setGrupoSeleccionado(null)
+            }}
+            style={{
+              backgroundColor: 'transparent',
+              border: 'none',
+              borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
+              color: tab === t.key ? 'var(--text-primary)' : 'var(--text-secondary)',
+              padding: '1rem 1.25rem',
+              fontSize: '0.9rem',
+              fontWeight: tab === t.key ? '700' : '400',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        {/* Vista: Cuadrícula de grupos */}
-        {!grupoSeleccionado && (
-          <div>
-            <p style={{
-              color: 'var(--text-secondary)',
-              fontSize: '0.85rem',
-              marginBottom: '1.5rem',
-              textAlign: 'center',
-            }}>
-              Selecciona un grupo para hacer tus predicciones
-            </p>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '1rem',
-            }}>
-              {letrasGrupos.map(letra => {
-                const partidos = grupos[letra]
-                const totalPreds = partidos.filter(p => predicciones[p.id]).length
-                const completo = totalPreds === 6
+      {/* =================== FASE DE GRUPOS =================== */}
+      {tab === 'groups' && (
+        <div style={{
+          maxWidth: '680px',
+          margin: '0 auto',
+          padding: '2rem 1.5rem',
+        }}>
+          {!grupoSeleccionado && (
+            <div>
+              <p style={{
+                color: 'var(--text-secondary)',
+                fontSize: '0.85rem',
+                marginBottom: '1.5rem',
+                textAlign: 'center',
+              }}>
+                Selecciona un grupo para hacer tus predicciones
+              </p>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: '1rem',
+              }}>
+                {letrasGrupos.map(letra => {
+                  const partidos = grupos[letra]
+                  const totalPreds = partidos.filter(p => predicciones[p.id]).length
+                  const completo = totalPreds === 6
 
-                return (
-                  <div
-                    key={letra}
-                    onClick={() => setGrupoSeleccionado(letra)}
-                    style={{
-                      backgroundColor: 'var(--bg-card)',
-                      border: `1px solid ${completo ? '#166534' : 'var(--border)'}`,
-                      borderRadius: '1rem',
-                      padding: '1.25rem',
-                      cursor: 'pointer',
-                      transition: 'border-color 0.2s',
-                    }}
-                    onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'}
-                    onMouseOut={e => e.currentTarget.style.borderColor = completo ? '#166534' : 'var(--border)'}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '0.75rem',
-                    }}>
-                      <span style={{
-                        color: 'var(--text-primary)',
-                        fontWeight: '700',
-                        fontSize: '1.1rem',
-                      }}>
-                        Grupo {letra}
-                      </span>
-                      {completo && (
-                        <span style={{ fontSize: '1rem' }}>✅</span>
-                      )}
-                    </div>
-
-                    {/* Equipos del grupo */}
-                    <div style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '0.25rem',
-                    }}>
-                      {[...new Set(partidos.flatMap(p => [p.home_team, p.away_team]))].slice(0, 4).map(equipo => (
-                        <span key={equipo} style={{
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.8rem',
-                        }}>
-                          {equipo}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Progreso de predicciones */}
-                    <div style={{ marginTop: '0.75rem' }}>
+                  return (
+                    <div
+                      key={letra}
+                      onClick={() => setGrupoSeleccionado(letra)}
+                      style={{
+                        backgroundColor: 'var(--bg-card)',
+                        border: `1px solid ${completo ? '#166834' : 'var(--border)'}`,
+                        borderRadius: '1rem',
+                        padding: '1.25rem',
+                        cursor: 'pointer',
+                        transition: 'border-color 0.2s',
+                      }}
+                      onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+                      onMouseOut={e => e.currentTarget.style.borderColor = completo ? '#166834' : 'var(--border)'}
+                    >
                       <div style={{
                         display: 'flex',
                         justifyContent: 'space-between',
-                        marginBottom: '0.25rem',
+                        alignItems: 'center',
+                        marginBottom: '0.75rem',
                       }}>
                         <span style={{
-                          color: 'var(--text-secondary)',
-                          fontSize: '0.75rem',
+                          color: 'var(--text-primary)',
+                          fontWeight: '700',
+                          fontSize: '1.1rem',
                         }}>
-                          Predicciones
+                          Grupo {letra}
                         </span>
-                        <span style={{
-                          color: completo ? 'var(--success)' : 'var(--text-secondary)',
-                          fontSize: '0.75rem',
-                          fontWeight: '600',
-                        }}>
-                          {totalPreds}/6
-                        </span>
+                        {completo && <span>✅</span>}
                       </div>
-                      <div style={{
-                        backgroundColor: 'var(--bg-secondary)',
-                        borderRadius: '999px',
-                        height: '4px',
-                        overflow: 'hidden',
-                      }}>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                        {[...new Set(partidos.flatMap(p => [p.home_team, p.away_team]))].slice(0, 4).map(equipo => (
+                          <span key={equipo} style={{
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.8rem',
+                          }}>
+                            {equipo}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div style={{ marginTop: '0.75rem' }}>
                         <div style={{
-                          backgroundColor: completo ? 'var(--success)' : 'var(--accent)',
-                          width: `${(totalPreds / 6) * 100}%`,
-                          height: '100%',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          marginBottom: '0.25rem',
+                        }}>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                            Predicciones
+                          </span>
+                          <span style={{
+                            color: completo ? 'var(--success)' : 'var(--text-secondary)',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                          }}>
+                            {totalPreds}/6
+                          </span>
+                        </div>
+                        <div style={{
+                          backgroundColor: 'var(--bg-secondary)',
                           borderRadius: '999px',
-                          transition: 'width 0.3s',
-                        }} />
+                          height: '4px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            backgroundColor: completo ? 'var(--success)' : 'var(--accent)',
+                            width: `${(totalPreds / 6) * 100}%`,
+                            height: '100%',
+                            borderRadius: '999px',
+                            transition: 'width 0.3s',
+                          }} />
+                        </div>
                       </div>
                     </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {grupoSeleccionado && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {[1, 2, 3].map(jornada => {
+                const partidosJornada = grupos[grupoSeleccionado]?.slice((jornada - 1) * 2, jornada * 2)
+                return (
+                  <div key={jornada}>
+                    <p style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      marginBottom: '0.5rem',
+                      marginTop: jornada > 1 ? '1rem' : '0',
+                    }}>
+                      Jornada {jornada}
+                    </p>
+                    {partidosJornada?.map(partido => {
+                      const estado = getEstadoPartido(partido)
+                      const pred = predicciones[partido.id]
+                      const bloqueado = estado === 'locked' || estado === 'finished'
+
+                      return (
+                        <div
+                          key={partido.id}
+                          onClick={() => !bloqueado && abrirModal(partido)}
+                          style={{
+                            backgroundColor: 'var(--bg-card)',
+                            border: `1px solid ${getEstadoColor(estado)}`,
+                            borderRadius: '0.75rem',
+                            padding: '1rem 1.25rem',
+                            cursor: bloqueado ? 'default' : 'pointer',
+                            marginBottom: '0.5rem',
+                          }}
+                        >
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '0.5rem',
+                          }}>
+                            <span style={{
+                              color: 'var(--text-primary)',
+                              fontWeight: '600',
+                              fontSize: '0.95rem',
+                              flex: 1,
+                            }}>
+                              {partido.home_team}
+                            </span>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              minWidth: '100px',
+                              justifyContent: 'center',
+                            }}>
+                              <span style={{
+                                color: (estado === 'predicted' || estado === 'finished') ? 'var(--text-primary)' : 'transparent',
+                                fontWeight: '700',
+                                fontSize: '1.5rem',
+                                minWidth: '24px',
+                                textAlign: 'center',
+                              }}>
+                                {estado === 'predicted' && pred?.pred_home_score}
+                                {estado === 'finished' && (pred ? pred.pred_home_score : partido.home_score)}
+                              </span>
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: '600' }}>vs</span>
+                              <span style={{
+                                color: (estado === 'predicted' || estado === 'finished') ? 'var(--text-primary)' : 'transparent',
+                                fontWeight: '700',
+                                fontSize: '1.5rem',
+                                minWidth: '24px',
+                                textAlign: 'center',
+                              }}>
+                                {estado === 'predicted' && pred?.pred_away_score}
+                                {estado === 'finished' && (pred ? pred.pred_away_score : partido.away_score)}
+                              </span>
+                            </div>
+                            <span style={{
+                              color: 'var(--text-primary)',
+                              fontWeight: '600',
+                              fontSize: '0.95rem',
+                              flex: 1,
+                              textAlign: 'right',
+                            }}>
+                              {partido.away_team}
+                            </span>
+                          </div>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginTop: '0.5rem',
+                          }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              {new Date(partido.match_date).toLocaleDateString('es', {
+                                day: 'numeric', month: 'short',
+                                hour: '2-digit', minute: '2-digit',
+                              })}
+                            </span>
+                            <div style={{ fontSize: '0.8rem', fontWeight: '600' }}>
+                              {estado === 'pending' && <span style={{ color: 'var(--accent)' }}>+ Predecir</span>}
+                              {estado === 'locked' && <span style={{ color: 'var(--muted)' }}>🔒 Cerrado</span>}
+                              {estado === 'predicted' && <span style={{ color: 'var(--success)' }}>✅ Guardado</span>}
+                              {estado === 'finished' && pred && <span style={{ color: 'var(--text-secondary)' }}>{pred.points_earned ?? '?'} pts</span>}
+                              {estado === 'finished' && !pred && <span style={{ color: 'var(--text-secondary)' }}>Sin pred</span>}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 )
               })}
             </div>
-          </div>
-        )}
+          )}
+        </div>
+      )}
 
-        {/* Vista: Partidos del grupo seleccionado */}
-        {grupoSeleccionado && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      {/* =================== ELIMINATORIAS =================== */}
+      {tab === 'knockout' && (
+        <div style={{ position: 'relative' }}>
 
-            {/* Jornadas */}
-            {[1, 2, 3].map(jornada => {
-              const partidosJornada = grupos[grupoSeleccionado]?.slice((jornada - 1) * 2, jornada * 2)
-              return (
-                <div key={jornada}>
+          {/* Overlay de bloqueado */}
+          {!knockoutUnlocked && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'rgba(15, 10, 30, 0.85)',
+              zIndex: 10,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '1rem',
+              padding: '2rem',
+              minHeight: '400px',
+            }}>
+              <span style={{ fontSize: '3rem' }}>🔒</span>
+              <p style={{
+                color: 'var(--text-primary)',
+                fontWeight: '700',
+                fontSize: '1.25rem',
+                textAlign: 'center',
+              }}>
+                Eliminatorias bloqueadas
+              </p>
+              <p style={{
+                color: 'var(--text-secondary)',
+                fontSize: '0.9rem',
+                textAlign: 'center',
+                maxWidth: '300px',
+              }}>
+                Se desbloqueará automáticamente cuando se confirmen los clasificados o el 2 de Julio 2026
+              </p>
+            </div>
+          )}
+
+          {/* Bracket scrolleable */}
+          <div style={{
+            overflowX: 'auto',
+            padding: '2rem 1.5rem',
+            filter: knockoutUnlocked ? 'none' : 'blur(3px)',
+          }}>
+            <div style={{
+              display: 'flex',
+              gap: '1.5rem',
+              minWidth: 'max-content',
+              alignItems: 'flex-start',
+              paddingBottom: '1rem',
+            }}>
+              {RONDAS_ORDER.map(ronda => (
+                <div key={ronda} style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  minWidth: '200px',
+                }}>
+                  {/* Header de ronda */}
                   <p style={{
                     color: 'var(--text-secondary)',
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
+                    textAlign: 'center',
                     marginBottom: '0.5rem',
-                    marginTop: jornada > 1 ? '1rem' : '0',
                   }}>
-                    Jornada {jornada}
+                    {RONDAS_LABEL[ronda]}
                   </p>
 
-                  {partidosJornada?.map(partido => {
-                    const estado = getEstadoPartido(partido)
-                    const pred = predicciones[partido.id]
-                    const bloqueado = estado === 'locked' || estado === 'finished'
+                  {/* Partidos de esta ronda */}
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: ronda === 'Round of 32' ? '0.5rem' :
+                         ronda === 'Quarter Finals' ? '2rem' :
+                         ronda === 'Semi Finals' ? '5rem' : '1rem',
+                    justifyContent: 'center',
+                  }}>
+                    {knockout[ronda]?.map(partido => {
+                      const estado = getEstadoPartido(partido)
+                      const pred = predicciones[partido.id]
+                      const bloqueado = !knockoutUnlocked || estado === 'locked' || estado === 'finished'
 
-                    return (
-                      <div
-                        key={partido.id}
-                        onClick={() => !bloqueado && abrirModal(partido)}
-                        style={{
-                          backgroundColor: 'var(--bg-card)',
-                          border: `1px solid ${getEstadoColor(estado)}`,
-                          borderRadius: '0.75rem',
-                          padding: '1rem 1.25rem',
-                          cursor: bloqueado ? 'default' : 'pointer',
-                          marginBottom: '0.5rem',
-                          transition: 'border-color 0.2s',
-                        }}
-                      >
-                        {/* Equipos */}
-                        <div style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '0.5rem',
-                        }}>
-                        <span style={{
-                            color: 'var(--text-primary)',
-                            fontWeight: '600',
-                            fontSize: '0.95rem',
-                            flex: 1,
-                        }}>
-                            {partido.home_team}
-                        </span>
-
-                        <div style={{
+                      return (
+                        <div
+                          key={partido.id}
+                          onClick={() => !bloqueado && abrirModal(partido)}
+                          style={{
+                            backgroundColor: 'var(--bg-card)',
+                            border: `1px solid ${getEstadoColor(estado)}`,
+                            borderRadius: '0.75rem',
+                            padding: '0.75rem 1rem',
+                            cursor: bloqueado ? 'default' : 'pointer',
+                            transition: 'border-color 0.2s',
+                          }}
+                          onMouseOver={e => {
+                            if (!bloqueado) e.currentTarget.style.borderColor = 'var(--accent)'
+                          }}
+                          onMouseOut={e => {
+                            e.currentTarget.style.borderColor = getEstadoColor(estado)
+                          }}
+                        >
+                          {/* Equipo local */}
+                          <div style={{
                             display: 'flex',
+                            justifyContent: 'space-between',
                             alignItems: 'center',
-                            gap: '0.5rem',
-                            minWidth: '100px',
-                            justifyContent: 'center',
-                        }}>
-                            {/* Número izquierdo */}
-                            <span style={{
-                            color: (estado === 'predicted' || estado === 'finished')
-                                ? 'var(--text-primary)' : 'transparent',
-                            fontWeight: '700',
-                            fontSize: '1.5rem',
-                            minWidth: '24px',
-                            textAlign: 'center',
-                            }}>
-                            {estado === 'predicted' && pred?.pred_home_score}
-                            {estado === 'finished' && (pred ? pred.pred_home_score : partido.home_score)}
-                            </span>
-
-                            <span style={{
-                            color: 'var(--text-secondary)',
-                            fontSize: '0.8rem',
-                            fontWeight: '600',
-                            }}>
-                            vs
-                            </span>
-
-                            {/* Número derecho */}
-                            <span style={{
-                            color: (estado === 'predicted' || estado === 'finished')
-                                ? 'var(--text-primary)' : 'transparent',
-                            fontWeight: '700',
-                            fontSize: '1.5rem',
-                            minWidth: '24px',
-                            textAlign: 'center',
-                            }}>
-                            {estado === 'predicted' && pred?.pred_away_score}
-                            {estado === 'finished' && (pred ? pred.pred_away_score : partido.away_score)}
-                            </span>
-                        </div>
-
-                        <span style={{
-                            color: 'var(--text-primary)',
-                            fontWeight: '600',
-                            fontSize: '0.95rem',
-                            flex: 1,
-                            textAlign: 'right',
-                        }}>
-                            {partido.away_team}
-                        </span>
-                        </div>
-
-                        {/* Estado y predicción */}
-                        <div style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginTop: '0.5rem',
-                        }}>
-                          <span style={{
-                            fontSize: '0.75rem',
-                            color: 'var(--text-secondary)',
+                            marginBottom: '0.4rem',
                           }}>
-                            {new Date(partido.match_date).toLocaleDateString('es', {
-                              day: 'numeric',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </span>
-
-                            <div style={{ fontSize: '0.8rem', fontWeight: '600' }}>
-                            {estado === 'pending' && (
-                                <span style={{ color: 'var(--accent)' }}>+ Predecir</span>
+                            <span style={{
+                              color: 'var(--text-primary)',
+                              fontSize: '0.8rem',
+                              fontWeight: '600',
+                            }}>
+                              {partido.home_team}
+                            </span>
+                            {(estado === 'predicted' || estado === 'finished') && (
+                              <span style={{
+                                color: 'var(--text-primary)',
+                                fontWeight: '700',
+                                fontSize: '0.9rem',
+                              }}>
+                                {estado === 'predicted' ? pred?.pred_home_score : pred?.pred_home_score ?? '-'}
+                              </span>
                             )}
-                            {estado === 'locked' && (
-                                <span style={{ color: 'var(--muted)' }}>🔒 Cerrado</span>
+                          </div>
+
+                          {/* Divider */}
+                          <div style={{
+                            height: '1px',
+                            backgroundColor: 'var(--border)',
+                            margin: '0.4rem 0',
+                          }} />
+
+                          {/* Equipo visitante */}
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                          }}>
+                            <span style={{
+                              color: 'var(--text-primary)',
+                              fontSize: '0.8rem',
+                              fontWeight: '600',
+                            }}>
+                              {partido.away_team}
+                            </span>
+                            {(estado === 'predicted' || estado === 'finished') && (
+                              <span style={{
+                                color: 'var(--text-primary)',
+                                fontWeight: '700',
+                                fontSize: '0.9rem',
+                              }}>
+                                {estado === 'predicted' ? pred?.pred_away_score : pred?.pred_away_score ?? '-'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Estado */}
+                          <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                            {estado === 'pending' && knockoutUnlocked && (
+                              <span style={{ color: 'var(--accent)', fontSize: '0.7rem' }}>+ Predecir</span>
                             )}
                             {estado === 'predicted' && (
-                                <span style={{ color: 'var(--success)' }}>✅ Predicción guardada</span>
+                              <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✅ Guardado</span>
                             )}
-                            {estado === 'finished' && !pred && (
-                                <span style={{ color: 'var(--text-secondary)' }}>Sin predicción</span>
+                            {estado === 'locked' && (
+                              <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>🔒 Cerrado</span>
                             )}
-                            </div>
+                            {estado === 'finished' && pred && (
+                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{pred.points_earned ?? '?'} pts</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Modal de predicción */}
       {modalPartido && (
@@ -470,56 +680,43 @@ export default function PartidosPage() {
               gap: '1.5rem',
             }}
           >
-            {/* Título del partido */}
             <div style={{ textAlign: 'center' }}>
-              <p style={{
-                color: 'var(--text-secondary)',
-                fontSize: '0.8rem',
-                marginBottom: '0.5rem',
-              }}>
-                Grupo {modalPartido.group_name} · {new Date(modalPartido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                {modalPartido.phase === 'group' ? `Grupo ${modalPartido.group_name} · ` : ''}
+                {new Date(modalPartido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
               </p>
-              <p style={{
-                color: 'var(--text-primary)',
-                fontWeight: '700',
-                fontSize: '1.1rem',
-              }}>
+              <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
                 {modalPartido.home_team} vs {modalPartido.away_team}
               </p>
             </div>
 
-            {/* Selector de goles */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '1.5rem',
             }}>
-
-              {/* Equipo local */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.75rem',
-              }}>
-                <span style={{
-                  color: 'var(--text-primary)',
-                  fontWeight: '600',
-                  fontSize: '0.85rem',
-                  textAlign: 'center',
-                  maxWidth: '80px',
-                }}>
-                  {modalPartido.home_team}
-                </span>
-                <div style={{
+              {[
+                { value: predHome, setValue: setPredHome, label: modalPartido.home_team },
+                { value: predAway, setValue: setPredAway, label: modalPartido.away_team },
+              ].map((equipo, i) => (
+                <div key={i} style={{
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.5rem',
+                  gap: '0.75rem',
                 }}>
+                  <span style={{
+                    color: 'var(--text-primary)',
+                    fontWeight: '600',
+                    fontSize: '0.85rem',
+                    textAlign: 'center',
+                    maxWidth: '80px',
+                  }}>
+                    {equipo.label}
+                  </span>
                   <button
-                    onClick={() => setPredHome(v => Math.min(v + 1, 20))}
+                    onClick={() => equipo.setValue(v => Math.min(v + 1, 20))}
                     style={{
                       width: '40px', height: '40px',
                       backgroundColor: 'var(--accent)',
@@ -535,10 +732,10 @@ export default function PartidosPage() {
                     minWidth: '48px',
                     textAlign: 'center',
                   }}>
-                    {predHome}
+                    {equipo.value}
                   </span>
                   <button
-                    onClick={() => setPredHome(v => Math.max(v - 1, 0))}
+                    onClick={() => equipo.setValue(v => Math.max(v - 1, 0))}
                     style={{
                       width: '40px', height: '40px',
                       backgroundColor: 'var(--bg-secondary)',
@@ -550,74 +747,9 @@ export default function PartidosPage() {
                     }}
                   >-</button>
                 </div>
-              </div>
-
-              <span style={{
-                color: 'var(--text-secondary)',
-                fontSize: '1.5rem',
-                fontWeight: '700',
-              }}>
-                -
-              </span>
-
-              {/* Equipo visitante */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '0.75rem',
-              }}>
-                <span style={{
-                  color: 'var(--text-primary)',
-                  fontWeight: '600',
-                  fontSize: '0.85rem',
-                  textAlign: 'center',
-                  maxWidth: '80px',
-                }}>
-                  {modalPartido.away_team}
-                </span>
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}>
-                  <button
-                    onClick={() => setPredAway(v => Math.min(v + 1, 20))}
-                    style={{
-                      width: '40px', height: '40px',
-                      backgroundColor: 'var(--accent)',
-                      border: 'none', borderRadius: '0.5rem',
-                      color: 'white', fontSize: '1.25rem',
-                      cursor: 'pointer', fontWeight: '700',
-                    }}
-                  >+</button>
-                  <span style={{
-                    color: 'var(--text-primary)',
-                    fontWeight: '700',
-                    fontSize: '2.5rem',
-                    minWidth: '48px',
-                    textAlign: 'center',
-                  }}>
-                    {predAway}
-                  </span>
-                  <button
-                    onClick={() => setPredAway(v => Math.max(v - 1, 0))}
-                    style={{
-                      width: '40px', height: '40px',
-                      backgroundColor: 'var(--bg-secondary)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '0.5rem',
-                      color: 'var(--text-primary)',
-                      fontSize: '1.25rem',
-                      cursor: 'pointer', fontWeight: '700',
-                    }}
-                  >-</button>
-                </div>
-              </div>
+              ))}
             </div>
 
-            {/* Botones */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <button
                 onClick={handleGuardarPrediccion}
