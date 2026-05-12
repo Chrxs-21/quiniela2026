@@ -36,7 +36,7 @@ export default function AdminPage() {
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     setCurrentUser(profile)
 
@@ -45,7 +45,7 @@ export default function AdminPage() {
       .from('rooms')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     // Verificar que es admin
     if (salaData?.owner_id !== user.id) {

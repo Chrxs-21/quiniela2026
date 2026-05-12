@@ -24,7 +24,7 @@ export default function SalaPage() {
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     setCurrentUser(profile)
 
@@ -33,7 +33,7 @@ export default function SalaPage() {
       .from('rooms')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
 
     if (!salaData) return router.push('/dashboard')
     setSala(salaData)

@@ -51,7 +51,7 @@ export default function PartidosPage() {
       .from('rooms')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     setSala(salaData)
 
     // Verificar si knockout está desbloqueado

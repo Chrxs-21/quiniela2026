@@ -17,7 +17,7 @@ export async function GET(request) {
         .from('users')
         .select('id')
         .eq('id', user.id)
-        .single()
+        .maybeSingle()
 
       // Si no tiene perfil → onboarding, si ya tiene → dashboard
       if (!profile) {

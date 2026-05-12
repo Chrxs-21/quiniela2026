@@ -28,7 +28,7 @@ export default function RankingPage() {
       .from('rooms')
       .select('*')
       .eq('id', id)
-      .single()
+      .maybeSingle()
     setSala(salaData)
 
     // Cargar miembros con estadísticas

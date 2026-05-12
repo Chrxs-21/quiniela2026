@@ -37,7 +37,7 @@ export default function OnboardingPage() {
       .from('users')
       .select('id')
       .eq('username', username.toLowerCase())
-      .single()
+      .maybeSingle()
 
     if (existing) {
       setError('Ese username ya está en uso, elige otro')

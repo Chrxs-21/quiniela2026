@@ -42,7 +42,7 @@ export default function CrearSalaPage() {
         phase: 'group',
       })
       .select()
-      .single()
+      .maybeSingle()
 
     if (salaError) {
     setError(salaError.message)

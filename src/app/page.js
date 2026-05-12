@@ -16,7 +16,7 @@ export default function LoginPage() {
           .from('users')
           .select('id')
           .eq('id', user.id)
-          .single()
+          .maybeSingle()
 
         if (profile) {
           router.push('/dashboard')

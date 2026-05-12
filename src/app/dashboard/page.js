@@ -22,7 +22,7 @@ export default function DashboardPage() {
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     // Cargar salas del usuario
     const { data: roomsData } = await supabase
