@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import { getBandera } from '@/lib/banderas'
 
 const RONDAS_ORDER = ['Round of 16', 'Round of 8', 'Quarter Finals', 'Semi Finals', 'Third Place', 'Final']
 const RONDAS_LABEL = {
@@ -908,15 +909,25 @@ useEffect(() => {
                   alignItems: 'center',
                   gap: '0.75rem',
                 }}>
-                  <span style={{
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.85rem',
-                    textAlign: 'center',
-                    maxWidth: '80px',
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.25rem',
                   }}>
-                    {equipo.label}
-                  </span>
+                    <span style={{ fontSize: '2rem' }}>
+                      {getBandera(equipo.label)}
+                    </span>
+                    <span style={{
+                      color: 'var(--text-primary)',
+                      fontWeight: '600',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                      maxWidth: '80px',
+                    }}>
+                      {equipo.label}
+                    </span>
+                  </div>
                   <button
                     onClick={() => equipo.setValue(Math.min(equipo.value + 1, 20))}
                     style={{
@@ -1086,15 +1097,25 @@ useEffect(() => {
                   alignItems: 'center',
                   gap: '0.75rem',
                 }}>
-                  <span style={{
-                    color: 'var(--text-primary)',
-                    fontWeight: '600',
-                    fontSize: '0.85rem',
-                    textAlign: 'center',
-                    maxWidth: '80px',
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.25rem',
                   }}>
-                    {equipo.label}
-                  </span>
+                    <span style={{ fontSize: '2rem' }}>
+                      {getBandera(equipo.label)}
+                    </span>
+                    <span style={{
+                      color: 'var(--text-primary)',
+                      fontWeight: '600',
+                      fontSize: '0.75rem',
+                      textAlign: 'center',
+                      maxWidth: '80px',
+                    }}>
+                      {equipo.label}
+                    </span>
+                  </div>
                   <button
                     onClick={() => equipo.setValue(v => Math.min(v + 1, 20))}
                     style={{
