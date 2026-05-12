@@ -25,33 +25,32 @@ export async function middleware(request) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
-console.log('Middleware - pathname:', request.nextUrl.pathname)
-console.log('Middleware - user:', user?.id)
-console.log('Middleware - authError:', authError)
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
 
-  // Si no hay sesión y trata de entrar a rutas protegidas → al login
-  if (!user && (
-    request.nextUrl.pathname.startsWith('/dashboard') ||
-    request.nextUrl.pathname.startsWith('/sala') ||
-    request.nextUrl.pathname.startsWith('/onboarding')
-  )) {
-    return NextResponse.redirect(new URL('/', request.url))
-  }
-
-  // Si hay sesión y va al login → verificar si tiene perfil
-  if (user && request.nextUrl.pathname === '/') {
-    const { data: profile, error: profileError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single()
-
-    if (!profile) {
-      return NextResponse.redirect(new URL('/onboarding', request.url))
+    if (!user && (
+      request.nextUrl.pathname.startsWith('/dashboard') ||
+      request.nextUrl.pathname.startsWith('/sala') ||
+      request.nextUrl.pathname.startsWith('/onboarding')
+    )) {
+      return NextResponse.redirect(new URL('/', request.url))
     }
 
-    return NextResponse.redirect(new URL('/dashboard', request.url))
+    if (user && request.nextUrl.pathname === '/') {
+      const { data: profile } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (!profile) {
+        return NextResponse.redirect(new URL('/onboarding', request.url))
+      }
+
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+  } catch (error) {
+    console.error('Middleware error:', error)
   }
 
   return supabaseResponse
