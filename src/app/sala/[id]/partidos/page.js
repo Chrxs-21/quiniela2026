@@ -320,6 +320,8 @@ useEffect(() => {
   function getEstadoPartido(partido) {
     if (partido.status === 'finished') return 'finished'
     if (partido.status === 'locked') return 'locked'
+    // Bloqueo automático por fecha
+    if (partido.match_date && new Date(partido.match_date) <= new Date()) return 'locked'
     if (predicciones[partido.id]) return 'predicted'
     return 'pending'
   }
