@@ -29,7 +29,7 @@ export default function UnirseSalaPage() {
       .from('rooms')
       .select('*')
       .eq('code', codigo.toUpperCase())
-      .single()
+      .maybeSingle()
 
     if (!sala) {
       setError('Código incorrecto, verifica e intenta de nuevo')
