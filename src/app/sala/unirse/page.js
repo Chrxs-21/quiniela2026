@@ -43,7 +43,7 @@ export default function UnirseSalaPage() {
       .select('id')
       .eq('room_id', sala.id)
       .eq('user_id', user.id)
-      .single()
+      .maybeSingle()
 
     if (yaEsMiembro) {
       router.push(`/sala/${sala.id}`)
