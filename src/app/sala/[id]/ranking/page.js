@@ -430,27 +430,46 @@ export default function RankingPage() {
                             alignItems: 'center',
                             gap: '0.75rem',
                           }}>
-                            <span style={{
-                              color: 'var(--text-primary)',
-                              fontWeight: '700',
-                              fontSize: '1.1rem',
-                            }}>
-                              {pred.pred_home_score} - {pred.pred_away_score}
-                            </span>
-
-                            {pred.points_earned !== null && (
+                            {partido.status === 'finished' ? (
+                              <>
+                                <span style={{
+                                  color: 'var(--text-primary)',
+                                  fontWeight: '700',
+                                  fontSize: '1.1rem',
+                                }}>
+                                  {pred.pred_home_score} - {pred.pred_away_score}
+                                </span>
+                                {pred.points_earned !== null && (
+                                  <span style={{
+                                    backgroundColor:
+                                      pred.points_earned === 5 ? '#166534' :
+                                      pred.points_earned >= 2 ? '#854d0e' :
+                                      '#7f1d1d',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '700',
+                                    padding: '0.2rem 0.5rem',
+                                    borderRadius: '0.4rem',
+                                  }}>
+                                    +{pred.points_earned}pts
+                                  </span>
+                                )}
+                              </>
+                            ) : partido.status === 'locked' ? (
                               <span style={{
-                                backgroundColor:
-                                  pred.points_earned === 5 ? '#166534' :
-                                  pred.points_earned >= 2 ? '#854d0e' :
-                                  '#7f1d1d',
-                                color: 'var(--text-primary)',
-                                fontSize: '0.75rem',
-                                fontWeight: '700',
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '0.4rem',
+                                color: 'var(--text-secondary)',
+                                fontSize: '0.8rem',
+                                fontStyle: 'italic',
                               }}>
-                                +{pred.points_earned}pts
+                                🔒 Se revela al terminar
+                              </span>
+                            ) : (
+                              <span style={{
+                                color: 'var(--text-secondary)',
+                                fontSize: '0.8rem',
+                                fontStyle: 'italic',
+                              }}>
+                                ⏳ Se revela al terminar
                               </span>
                             )}
                           </div>
