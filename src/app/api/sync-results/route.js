@@ -32,8 +32,7 @@ export async function GET(request) {
       },
     })
 
-    const data = await response.json()
-    const matches = data.data || []
+    const matches = await response.json()
 
     let actualizados = 0
     let errores = 0
