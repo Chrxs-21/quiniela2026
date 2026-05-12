@@ -33,7 +33,6 @@ export default function UnirseSalaPage() {
 
       console.log('Codigo buscado:', codigo.toUpperCase())
       console.log('Sala encontrada:', sala)
-      console.log('Error:', salaError)
 
     if (!sala) {
       setError('Código incorrecto, verifica e intenta de nuevo')
