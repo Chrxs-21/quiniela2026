@@ -682,15 +682,11 @@ export default function PartidosPage() {
                 gap: "0.75rem",
               }}
             >
-              {[1, 2, 3].map((jornada) => {
-                const todosPartidos = grupos[grupoSeleccionado] || [];
-                const ordenados = [...todosPartidos].sort(
-                  (a, b) => a.match_number - b.match_number,
-                );
-                const partidosJornada = ordenados.slice(
-                  (jornada - 1) * 2,
-                  jornada * 2,
-                );
+              {[1, 2, 3].map(jornada => {
+  const todosPartidos = grupos[grupoSeleccionado] || []
+  const ordenados = [...todosPartidos].sort((a, b) => a.match_number - b.match_number)
+  const partidosJornada = ordenados.slice((jornada - 1) * 2, jornada * 2)
+  console.log(`Grupo ${grupoSeleccionado} Jornada ${jornada}:`, partidosJornada.map(p => `${p.home_team} vs ${p.away_team}`))
                 return (
                   <div key={jornada}>
                     <p
