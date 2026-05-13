@@ -2,14 +2,14 @@ name: Cron Jobs
 
 on:
   schedule:
-    - cron: '0 */2 * * *'  # sync resultados cada 2 horas
-    - cron: '0 0 */5 * *'  # keep-alive cada 5 días
+    - cron: '0 */2 * * *'   # sync cada 2 horas
+    - cron: '0 0 */5 * *'   # keep-alive cada 5 días
 
 jobs:
   sync-results:
     runs-on: ubuntu-latest
     steps:
-      - name: Sync resultados
+      - name: Sync resultados y equipos
         run: |
           curl -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
