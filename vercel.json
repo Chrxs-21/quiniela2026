@@ -1,12 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/sync-results",
-      "schedule": "0 */2 * * *"
-    },
-    {
-      "path": "/api/keep-alive",
-      "schedule": "0 */5 * * *"
-    }
-  ]
-}
+{}

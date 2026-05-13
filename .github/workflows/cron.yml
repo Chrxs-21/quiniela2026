@@ -1,0 +1,25 @@
+name: Cron Jobs
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'  # sync resultados cada 2 horas
+    - cron: '0 0 */5 * *'  # keep-alive cada 5 días
+
+jobs:
+  sync-results:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Sync resultados
+        run: |
+          curl -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://quiniela2026-three.vercel.app/api/sync-results
+
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Keep alive Supabase
+        run: |
+          curl -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://quiniela2026-three.vercel.app/api/keep-alive
