@@ -2,8 +2,8 @@ name: Cron Jobs
 
 on:
   schedule:
-    - cron: '0 */2 * * *'   # sync cada 2 horas
-    - cron: '0 0 */5 * *'   # keep-alive cada 5 días
+    - cron: '15 * * * *'    # sync cada hora en el minuto 15 (usa 24 requests al día, muy seguro)
+    - cron: '0 0 */5 * *'   # keep-alive cada 5 días para evitar que Supabase se pause
 
 jobs:
   sync-results:
