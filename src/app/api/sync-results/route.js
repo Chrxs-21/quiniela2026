@@ -1,3 +1,4 @@
+/* src/app/api/sync-results/route.js */
 import { createServerClient } from '@supabase/ssr'
 
 export async function GET(request) {
@@ -6,7 +7,6 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Se intenta utilizar la llave SERVICE ROLE si la has agregado, caso contrario recurre a la ANON
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -21,22 +21,21 @@ export async function GET(request) {
   const TRADUCCION_EQUIPOS = {
     'Mexico': 'México', 'South Africa': 'Sudáfrica', 'Korea Republic': 'Corea del Sur',
     'Czechia': 'Chequia', 'Canada': 'Canadá', 'Bosnia-Herzegovina': 'Bosnia y Herzegovina',
-    'Qatar': 'Catar', 'Switzerland': 'Suiza', 'Brazil': 'Brasil', 'Morocco': 'Marruecos',
+    'Qatar': 'Qatar', 'Switzerland': 'Suiza', 'Brazil': 'Brasil', 'Morocco': 'Marruecos',
     'Haiti': 'Haití', 'Scotland': 'Escocia', 'USA': 'Estados Unidos', 'Paraguay': 'Paraguay',
     'Australia': 'Australia', 'Turkey': 'Turquía', 'Germany': 'Alemania', "Curaçao": 'Curazao',
     "Côte d'Ivoire": 'Costa de Marfil', 'Ecuador': 'Ecuador', 'Netherlands': 'Países Bajos',
     'Japan': 'Japón', 'Sweden': 'Suecia', 'Tunisia': 'Túnez', 'Belgium': 'Bélgica',
     'Egypt': 'Egipto', 'IR Iran': 'Irán', 'New Zealand': 'Nueva Zelanda', 'Spain': 'España',
     'Cabo Verde': 'Cabo Verde', 'Saudi Arabia': 'Arabia Saudita', 'Uruguay': 'Uruguay',
-    'France': 'Francia', 'Senegal': 'Senegal', 'Iraq': 'Irak', 'Norway': 'Noruega',
+    'France': 'Francia', 'Senegal': 'Senegal', 'Iraq': 'Iraq', 'Norway': 'Noruega',
     'Argentina': 'Argentina', 'Algeria': 'Argelia', 'Austria': 'Austria', 'Jordan': 'Jordania',
-    'Portugal': 'Portugal', 'Uzbekistan': 'Uzbekistán', 'Congo DR': 'Rep. Democrática del Congo',
+    'Portugal': 'Portugal', 'Uzbekistan': 'Uzbekistán', 'Congo DR': 'DR Congo',
     'Colombia': 'Colombia', 'England': 'Inglaterra', 'Croatia': 'Croacia', 'Ghana': 'Ghana',
     'Panama': 'Panamá',
   }
 
   try {
-    // 1. Obtener los resultados en tiempo real de la API externa
     const response = await fetch('https://api.wc2026api.com/matches', {
       headers: {
         'Authorization': `Bearer ${process.env.WC2026_API_KEY}`,
@@ -47,65 +46,72 @@ export async function GET(request) {
       throw new Error(`API Externa falló con status: ${response.status}`)
     }
     
-    const matches = await response.json()
-    console.log(`Partidos recibidos de la API externa: ${matches.length}`)
-
-    // 2. OPTIMIZACIÓN: Cargar todos los partidos locales en un único Query a Supabase
+    // 1. Manejar el payload correctamente (el array viene dentro de .value)
+    const parsedData = await response.json()
+    const matches = Array.isArray(parsedData.value) ? parsedData.value : parsedData
+    
+    // 2. Traer todos los partidos de Supabase
     const { data: dbMatches, error: matchError } = await supabase
       .from('matches')
-      .select('id, match_number, status, home_team, away_team')
+      .select('id, match_number, status, home_team, away_team, phase')
       
-    if (matchError) throw new Error(`Error en Supabase local: ${matchError.message}`)
-
-    // Convertirlo a un diccionario para acceder al instante (Ej: partidosLocales[1] ...)
-    const partidosLocales = {}
-    dbMatches.forEach(m => {
-      partidosLocales[m.match_number] = m
-    })
+    if (matchError) throw new Error(`Error BD local: ${matchError.message}`)
 
     let actualizados = 0
     let equiposActualizados = 0
     let errores = 0
 
-    // 3. Iterar los partidos de la API
+    // 3. Iterar cada partido devuelto de la API Externa
     for (const match of matches) {
-      const partido = partidosLocales[match.match_number]
-      if (!partido) continue // Si no existe en la base de datos, lo ignoramos
-
-      // Actualizar resultado si el partido terminó en la vida real ("completed" o "finished"), 
-      // pero localmente nuestra DB aún no marca "finished"
-      const matchFinalizadoExternamente = match.status === 'completed' || match.status === 'finished';
+      let partido = null
       
-      if (matchFinalizadoExternamente && partido.status !== 'finished') {
+      const homeTraducido = TRADUCCION_EQUIPOS[match.home_team] || match.home_team
+      const awayTraducido = TRADUCCION_EQUIPOS[match.away_team] || match.away_team
+
+      if (match.round === 'group') {
+        // En Fase Grupos: Validar por nombres de equipo saltando el match_number desfasado
+        partido = dbMatches.find(m => 
+          m.phase === 'group' && 
+          ((m.home_team === homeTraducido && m.away_team === awayTraducido) || 
+           (m.home_team === awayTraducido && m.away_team === homeTraducido))
+        )
+      } else {
+        // En Knockout: Validar por standard FIFA match_number ya que no hay equipos reales 
+        partido = dbMatches.find(m => m.match_number === match.match_number && m.phase === 'knockout')
+      }
+
+      if (!partido) continue 
+
+      let finalHomeScore = match.home_score;
+      let finalAwayScore = match.away_score;
+      
+      // Si el partido está cruzado en BD (Nuestro Away es su Home) de antemano, invertimos los goles cruzados
+      if (match.round === 'group' && partido.home_team === awayTraducido && partido.away_team === homeTraducido) {
+        finalHomeScore = match.away_score;
+        finalAwayScore = match.home_score;
+      }
+
+      // 4. SOLUCIÓN ESTADO: La API manda status 'completed'
+      if (match.status === 'completed' && partido.status !== 'finished') {
         const { error } = await supabase
           .from('matches')
           .update({
-            home_score: match.home_score,
-            away_score: match.away_score,
-            status: 'finished', // Nosotros internamente usamos 'finished', así que guardamos 'finished'
+            home_score: finalHomeScore,
+            away_score: finalAwayScore,
+            status: 'finished', // El Trigger local se reactivará al pasar a finished
           })
           .eq('id', partido.id)
 
-        if (error) {
-          console.error(`Error actualizando partido #${match.match_number}:`, error)
-          errores++
-        } else {
+        if (error) errores++
+        else {
           actualizados++
-          // Sincronizamos local para las siguientes comprobaciones
           partido.status = 'finished'
         }
       }
 
-      // Actualizar equipos en eliminatorias cuando se confirmen (fase != 'group')
+      // 5. SOLUCIÓN EQUIPOS KNOCKOUT: Poblar los vacíos cuando los decidan.
       if (match.round !== 'group' && match.home_team && match.away_team) {
-        const homeTraducido = TRADUCCION_EQUIPOS[match.home_team] || match.home_team
-        const awayTraducido = TRADUCCION_EQUIPOS[match.away_team] || match.away_team
-
-        const necesitaActualizar =
-          partido.home_team !== homeTraducido ||
-          partido.away_team !== awayTraducido
-
-        if (necesitaActualizar) {
+        if (partido.home_team !== homeTraducido || partido.away_team !== awayTraducido) {
           const { error } = await supabase
             .from('matches')
             .update({
@@ -114,28 +120,18 @@ export async function GET(request) {
             })
             .eq('id', partido.id)
 
-          if (error) {
-            console.error(`Error actualizando equipo en partido #${match.match_number}:`, error)
-            errores++
-          } else {
-            equiposActualizados++
-            partido.home_team = homeTraducido
-            partido.away_team = awayTraducido
-          }
+          if (error) errores++
+          else equiposActualizados++
         }
       }
     }
 
     return Response.json({
-      ok: true,
-      actualizados,
-      equiposActualizados,
-      errores,
-      total: matches.length,
+      ok: true, actualizados, equiposActualizados, errores, total: matches.length
     })
 
   } catch (error) {
-    console.error('[Cron Error Sync Results]:', error.message)
+    console.error('[Error Sync]:', error.message)
     return Response.json({ error: error.message }, { status: 500 })
   }
 }
