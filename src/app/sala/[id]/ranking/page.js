@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import { getBandera } from '@/lib/banderas' // <-- Necesitamos importar las banderas
 
 export default function RankingPage() {
   const supabase = createClient()
@@ -17,6 +18,7 @@ export default function RankingPage() {
   const [partidos, setPartidos] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadingPreds, setLoadingPreds] = useState(false)
+  const [expandedGroups, setExpandedGroups] = useState({}) // <-- Estado para controlar los acordeones de grupos
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -88,10 +90,12 @@ export default function RankingPage() {
     if (selectedUser?.user_id === miembro.user_id) {
       setSelectedUser(null)
       setPrediccionesRival([])
+      setExpandedGroups({}) // Reseteamos los acordeones si se cierra
       return
     }
 
     setSelectedUser(miembro)
+    setExpandedGroups({}) // Ocultamos los acordeones al abrir un nuevo usuario
     setLoadingPreds(true)
 
     const { data: preds } = await supabase
@@ -103,6 +107,11 @@ export default function RankingPage() {
 
     setPrediccionesRival(preds || [])
     setLoadingPreds(false)
+  }
+
+  // Función para abrir/cerrar un grupo en el acordeón
+  function toggleGroup(groupName) {
+    setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }))
   }
 
   useEffect(() => {
@@ -121,6 +130,226 @@ export default function RankingPage() {
       }}>
         <p style={{ color: 'var(--text-secondary)' }}>Cargando ranking...</p>
       </main>
+    )
+  }
+
+  // Tarjeta individual para mostrar el resultado de la predicción 
+  function PredictionCard({ pred, partido }) {
+    return (
+      <div
+        style={{
+          backgroundColor: 'var(--bg-card)',
+          borderRadius: '0.5rem',
+          padding: '0.75rem 1rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          border: '1px solid var(--border)'
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <p style={{
+            color: 'var(--text-secondary)',
+            fontSize: '0.7rem',
+            marginBottom: '0.2rem',
+          }}>
+            {partido.phase === 'group' ? `Grupo ${partido.group_name} · ` : ''}
+            {partido.round}
+          </p>
+          <p style={{
+            color: 'var(--text-primary)',
+            fontSize: '0.85rem',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.4rem'
+          }}>
+            <span>{getBandera(partido.home_team)}</span> {partido.home_team} 
+            <span style={{ color: 'var(--text-secondary)', fontWeight: '400' }}>vs</span> 
+            {partido.away_team} <span>{getBandera(partido.away_team)}</span>
+          </p>
+        </div>
+
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem',
+        }}>
+          {partido.status === 'finished' ? (
+            <>
+              <span style={{
+                color: 'var(--text-primary)',
+                fontWeight: '700',
+                fontSize: '1.1rem',
+              }}>
+                {pred.pred_home_score} - {pred.pred_away_score}
+              </span>
+              {pred.points_earned !== null && (
+                <span style={{
+                  backgroundColor:
+                    pred.points_earned === 5 ? '#166534' :
+                    pred.points_earned >= 2 ? '#854d0e' :
+                    '#7f1d1d',
+                  color: 'white',
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: '0.4rem',
+                }}>
+                  +{pred.points_earned}pts
+                </span>
+              )}
+            </>
+          ) : partido.status === 'locked' ? (
+            <span style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.8rem',
+              fontStyle: 'italic',
+            }}>
+              🔒 Se revela al terminar
+            </span>
+          ) : (
+            <span style={{
+              color: 'var(--text-secondary)',
+              fontSize: '0.8rem',
+              fontStyle: 'italic',
+            }}>
+              🕒 Se revela al terminar
+            </span>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // Sistema que procesa, agrupa y renderiza los acordeones dinámicamente
+  function renderPrediccionesAgrupadas() {
+    const agrupadas = { Grupos: {}, Eliminatorias: {} }
+    const equiposPorGrupo = {}
+
+    prediccionesRival.forEach(pred => {
+      const partido = partidos[pred.match_id]
+      if (!partido) return
+
+      if (partido.phase === 'group') {
+        const gName = `Grupo ${partido.group_name}`
+        if (!agrupadas.Grupos[gName]) agrupadas.Grupos[gName] = []
+        agrupadas.Grupos[gName].push({ pred, partido })
+
+        // Recolectamos los equipos para sacar luego sus banderas
+        if (!equiposPorGrupo[gName]) equiposPorGrupo[gName] = new Set()
+        equiposPorGrupo[gName].add(partido.home_team)
+        equiposPorGrupo[gName].add(partido.away_team)
+      } else {
+        const rName = partido.round
+        if (!agrupadas.Eliminatorias[rName]) agrupadas.Eliminatorias[rName] = []
+        agrupadas.Eliminatorias[rName].push({ pred, partido })
+      }
+    })
+
+    const gruposKeys = Object.keys(agrupadas.Grupos).sort()
+    const elimKeys = Object.keys(agrupadas.Eliminatorias)
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        
+        {/* Renderizado de los Grupos */}
+        {gruposKeys.map(groupName => {
+          const isOpen = expandedGroups[groupName]
+          const equiposSet = equiposPorGrupo[groupName]
+          // Obtenemos solo array de 4 banderas
+          const banderas = Array.from(equiposSet).slice(0, 4).map(team => getBandera(team)).join(' ')
+
+          return (
+            <div key={groupName} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button
+                onClick={() => toggleGroup(groupName)}
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  border: isOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  borderRadius: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                }}
+              >
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem' }}>
+                      {groupName}
+                    </span>
+                    <span style={{ fontSize: '1.1rem', letterSpacing: '0.2rem' }}>{banderas}</span>
+                 </div>
+                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                   {isOpen ? '▲ Ocultar' : '▼ Ver'}
+                 </span>
+              </button>
+              
+              {isOpen && (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '0.5rem', 
+                  padding: '0 0.25rem 0.5rem 0.25rem' 
+                }}>
+                  {agrupadas.Grupos[groupName].sort((a,b) => a.partido.match_number - b.partido.match_number).map(({ pred, partido }) => (
+                    <PredictionCard key={pred.id} pred={pred} partido={partido} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        {/* Renderizado de las Eliminatorias */}
+        {elimKeys.map(roundName => {
+          const isOpen = expandedGroups[roundName]
+          return (
+            <div key={roundName} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <button
+                onClick={() => toggleGroup(roundName)}
+                style={{
+                  backgroundColor: 'var(--bg-card)',
+                  border: isOpen ? '1px solid var(--accent)' : '1px solid var(--border)',
+                  borderRadius: '0.5rem',
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s',
+                }}
+              >
+                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '0.95rem' }}>
+                      Eliminatorias - {roundName}
+                    </span>
+                 </div>
+                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                   {isOpen ? '▲ Ocultar' : '▼ Ver'}
+                 </span>
+              </button>
+              
+              {isOpen && (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  gap: '0.5rem', 
+                  padding: '0 0.25rem 0.5rem 0.25rem' 
+                }}>
+                  {agrupadas.Eliminatorias[roundName].sort((a,b) => a.partido.match_number - b.partido.match_number).map(({ pred, partido }) => (
+                    <PredictionCard key={pred.id} pred={pred} partido={partido} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     )
   }
 
@@ -228,7 +457,7 @@ export default function RankingPage() {
                     justifyContent: 'center',
                     fontWeight: '700',
                     fontSize: '1rem',
-                    color: 'var(--text-primary)',
+                    color: 'white',
                     flexShrink: 0,
                   }}>
                     {miembro.users?.username?.charAt(0).toUpperCase()}
@@ -250,7 +479,7 @@ export default function RankingPage() {
                           backgroundColor: 'var(--accent)',
                           padding: '0.1rem 0.4rem',
                           borderRadius: '0.25rem',
-                          color: 'var(--text-primary)',
+                          color: 'white',
                         }}>
                           tú
                         </span>
@@ -360,7 +589,7 @@ export default function RankingPage() {
                 </div>
               </div>
 
-              {/* Panel de predicciones expandible */}
+              {/* Panel de predicciones expandible MODIFICADO AQUÍ */}
               {seleccionado && (
                 <div style={{
                   backgroundColor: 'var(--bg-secondary)',
@@ -391,91 +620,7 @@ export default function RankingPage() {
                       No ha hecho predicciones aún
                     </p>
                   ) : (
-                    prediccionesRival.map(pred => {
-                      const partido = partidos[pred.match_id]
-                      if (!partido) return null
-
-                      return (
-                        <div
-                          key={pred.id}
-                          style={{
-                            backgroundColor: 'var(--bg-card)',
-                            borderRadius: '0.5rem',
-                            padding: '0.75rem 1rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                          }}
-                        >
-                          <div style={{ flex: 1 }}>
-                            <p style={{
-                              color: 'var(--text-secondary)',
-                              fontSize: '0.7rem',
-                              marginBottom: '0.2rem',
-                            }}>
-                              {partido.phase === 'group' ? `Grupo ${partido.group_name} · ` : ''}
-                              {partido.round}
-                            </p>
-                            <p style={{
-                              color: 'var(--text-primary)',
-                              fontSize: '0.85rem',
-                              fontWeight: '600',
-                            }}>
-                              {partido.home_team} vs {partido.away_team}
-                            </p>
-                          </div>
-
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.75rem',
-                          }}>
-                            {partido.status === 'finished' ? (
-                              <>
-                                <span style={{
-                                  color: 'var(--text-primary)',
-                                  fontWeight: '700',
-                                  fontSize: '1.1rem',
-                                }}>
-                                  {pred.pred_home_score} - {pred.pred_away_score}
-                                </span>
-                                {pred.points_earned !== null && (
-                                  <span style={{
-                                    backgroundColor:
-                                      pred.points_earned === 5 ? '#166534' :
-                                      pred.points_earned >= 2 ? '#854d0e' :
-                                      '#7f1d1d',
-                                    color: 'var(--text-primary)',
-                                    fontSize: '0.75rem',
-                                    fontWeight: '700',
-                                    padding: '0.2rem 0.5rem',
-                                    borderRadius: '0.4rem',
-                                  }}>
-                                    +{pred.points_earned}pts
-                                  </span>
-                                )}
-                              </>
-                            ) : partido.status === 'locked' ? (
-                              <span style={{
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.8rem',
-                                fontStyle: 'italic',
-                              }}>
-                                🔒 Se revela al terminar
-                              </span>
-                            ) : (
-                              <span style={{
-                                color: 'var(--text-secondary)',
-                                fontSize: '0.8rem',
-                                fontStyle: 'italic',
-                              }}>
-                                ⏳ Se revela al terminar
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })
+                    renderPrediccionesAgrupadas()
                   )}
                 </div>
               )}
