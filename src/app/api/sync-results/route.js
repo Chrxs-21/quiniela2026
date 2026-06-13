@@ -9,9 +9,9 @@ export async function GET(request) {
   // Se intenta utilizar la llave SERVICE ROLE si la has agregado, caso contrario recurre a la ANON
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const supabase = createServerClient(
+const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseKey,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return [] },
