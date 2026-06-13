@@ -6,9 +6,12 @@ export async function GET(request) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Se intenta utilizar la llave SERVICE ROLE si la has agregado, caso contrario recurre a la ANON
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    supabaseKey,
     {
       cookies: {
         getAll() { return [] },
@@ -47,6 +50,7 @@ export async function GET(request) {
     }
     
     const matches = await response.json()
+    console.log(`Partidos recibidos de la API externa: ${matches.length}`)
 
     // 2. OPTIMIZACIÓN: Cargar todos los partidos locales en un único Query a Supabase
     const { data: dbMatches, error: matchError } = await supabase
@@ -55,7 +59,7 @@ export async function GET(request) {
       
     if (matchError) throw new Error(`Error en Supabase local: ${matchError.message}`)
 
-    // Convertirlo a un diccionario para acceder instantáneamente (Ej: partidosLocales[1] ...)
+    // Convertirlo a un diccionario para acceder al instante (Ej: partidosLocales[1] ...)
     const partidosLocales = {}
     dbMatches.forEach(m => {
       partidosLocales[m.match_number] = m
@@ -81,8 +85,10 @@ export async function GET(request) {
           })
           .eq('id', partido.id)
 
-        if (error) errores++
-        else {
+        if (error) {
+          console.error(`Error actualizando partido #${match.match_number}:`, error)
+          errores++
+        } else {
           actualizados++
           // Sincronizamos local para las siguientes comprobaciones
           partido.status = 'finished'
@@ -107,10 +113,11 @@ export async function GET(request) {
             })
             .eq('id', partido.id)
 
-          if (error) errores++
-          else {
+          if (error) {
+            console.error(`Error actualizando equipo en partido #${match.match_number}:`, error)
+            errores++
+          } else {
             equiposActualizados++
-            // Sincronizamos local
             partido.home_team = homeTraducido
             partido.away_team = awayTraducido
           }
@@ -131,46 +138,3 @@ export async function GET(request) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 }
-
-const response = await fetch('https://api.wc2026api.com/matches', {
-      headers: {
-        'Authorization': `Bearer ${process.env.WC2026_API_KEY}`,
-      },
-    })
-
-    const matches = await response.json()
-    console.log(`Partidos recibidos de la API externa: ${matches.length}`);
-
-    let actualizados = 0
-    let equiposActualizados = 0
-    let errores = 0
-
-    for (const match of matches) {
-      const { data: partido } = await supabase
-        .from('matches')
-        .select('*')
-        .eq('match_number', match.match_number)
-        .maybeSingle()
-
-      if (!partido) continue
-
-      // Actualizar resultado si el partido terminó
-      if (match.status === 'finished' && partido.status !== 'finished') {
-        const { error } = await supabase
-          .from('matches')
-          .update({
-            home_score: match.home_score,
-            away_score: match.away_score,
-            status: 'finished',
-          })
-          .eq('id', partido.id)
-
-        if (error) {
-          console.error(`Error actualizando partido #${match.match_number}:`, error);
-          errores++;
-        } else {
-          actualizados++;
-        }
-      }
-      
-      // ... el resto de tu código para actualizar equipos se mantiene igual ...
