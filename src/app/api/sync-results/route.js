@@ -8,7 +8,7 @@ export async function GET(request) {
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() { return [] },
@@ -131,3 +131,46 @@ export async function GET(request) {
     return Response.json({ error: error.message }, { status: 500 })
   }
 }
+
+const response = await fetch('https://api.wc2026api.com/matches', {
+      headers: {
+        'Authorization': `Bearer ${process.env.WC2026_API_KEY}`,
+      },
+    })
+
+    const matches = await response.json()
+    console.log(`Partidos recibidos de la API externa: ${matches.length}`);
+
+    let actualizados = 0
+    let equiposActualizados = 0
+    let errores = 0
+
+    for (const match of matches) {
+      const { data: partido } = await supabase
+        .from('matches')
+        .select('*')
+        .eq('match_number', match.match_number)
+        .maybeSingle()
+
+      if (!partido) continue
+
+      // Actualizar resultado si el partido terminó
+      if (match.status === 'finished' && partido.status !== 'finished') {
+        const { error } = await supabase
+          .from('matches')
+          .update({
+            home_score: match.home_score,
+            away_score: match.away_score,
+            status: 'finished',
+          })
+          .eq('id', partido.id)
+
+        if (error) {
+          console.error(`Error actualizando partido #${match.match_number}:`, error);
+          errores++;
+        } else {
+          actualizados++;
+        }
+      }
+      
+      // ... el resto de tu código para actualizar equipos se mantiene igual ...

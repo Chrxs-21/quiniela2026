@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Sync resultados y equipos
         run: |
-          curl -X GET \
+          curl -f -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://quiniela2026-three.vercel.app/api/sync-results
 
@@ -20,6 +20,6 @@ jobs:
     steps:
       - name: Keep alive Supabase
         run: |
-          curl -X GET \
+          curl -f -X GET \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://quiniela2026-three.vercel.app/api/keep-alive
