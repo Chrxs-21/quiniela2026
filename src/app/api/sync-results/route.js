@@ -74,25 +74,22 @@ const supabase = createServerClient(
       const partido = partidosLocales[match.match_number]
       if (!partido) continue // Si no existe en la base de datos, lo ignoramos
 
-      // Actualizar resultado si el partido terminó en la vida real, pero localmente no está "finished"
-      if (match.status === 'finished' && partido.status !== 'finished') {
+// Actualizar resultado si el partido terminó en la API externa ('completed') 
+      // y localmente aún no está marcado como terminado ('finished')
+      if (match.status === 'completed' && partido.status !== 'finished') {
         const { error } = await supabase
           .from('matches')
           .update({
+            // Aseguramos que recibimos los goles de la API
             home_score: match.home_score,
             away_score: match.away_score,
-            status: 'finished',
+            status: 'finished', // Lo guardamos como 'finished' localmente porque tus triggers y UI lo necesitan así
           })
           .eq('id', partido.id)
 
-        if (error) {
-          console.error(`Error actualizando partido #${match.match_number}:`, error)
-          errores++
-        } else {
-          actualizados++
-          // Sincronizamos local para las siguientes comprobaciones
-          partido.status = 'finished'
-        }
+        if (error) errores++
+        else actualizados++
+      }
       }
 
       // Actualizar equipos en eliminatorias cuando se confirmen (fase != 'group')
