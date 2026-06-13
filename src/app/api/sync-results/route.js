@@ -7,9 +7,7 @@ export async function GET(request) {
   }
 
   // Se intenta utilizar la llave SERVICE ROLE si la has agregado, caso contrario recurre a la ANON
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-const supabase = createServerClient(
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
@@ -74,22 +72,28 @@ const supabase = createServerClient(
       const partido = partidosLocales[match.match_number]
       if (!partido) continue // Si no existe en la base de datos, lo ignoramos
 
-// Actualizar resultado si el partido terminó en la API externa ('completed') 
-      // y localmente aún no está marcado como terminado ('finished')
-      if (match.status === 'completed' && partido.status !== 'finished') {
+      // Actualizar resultado si el partido terminó en la vida real ("completed" o "finished"), 
+      // pero localmente nuestra DB aún no marca "finished"
+      const matchFinalizadoExternamente = match.status === 'completed' || match.status === 'finished';
+      
+      if (matchFinalizadoExternamente && partido.status !== 'finished') {
         const { error } = await supabase
           .from('matches')
           .update({
-            // Aseguramos que recibimos los goles de la API
             home_score: match.home_score,
             away_score: match.away_score,
-            status: 'finished', // Lo guardamos como 'finished' localmente porque tus triggers y UI lo necesitan así
+            status: 'finished', // Nosotros internamente usamos 'finished', así que guardamos 'finished'
           })
           .eq('id', partido.id)
 
-        if (error) errores++
-        else actualizados++
-      }
+        if (error) {
+          console.error(`Error actualizando partido #${match.match_number}:`, error)
+          errores++
+        } else {
+          actualizados++
+          // Sincronizamos local para las siguientes comprobaciones
+          partido.status = 'finished'
+        }
       }
 
       // Actualizar equipos en eliminatorias cuando se confirmen (fase != 'group')
