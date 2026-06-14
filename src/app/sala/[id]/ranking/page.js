@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
-import { getBandera } from '@/lib/banderas' // Importacin para las banderas
+import { getBandera } from '@/lib/banderas'
 
 export default function RankingPage() {
   const supabase = createClient()
@@ -18,7 +18,7 @@ export default function RankingPage() {
   const [partidos, setPartidos] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadingPreds, setLoadingPreds] = useState(false)
-  const [gruposExpandidos, setGruposExpandidos] = useState({}) // Estado para los mens desplegables
+  const [gruposExpandidos, setGruposExpandidos] = useState({})
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -33,7 +33,7 @@ export default function RankingPage() {
       .maybeSingle()
     setSala(salaData)
 
-    // Cargar miembros con estadsticas
+    // Cargar miembros con estadísticas
     const { data: miembros } = await supabase
       .from('room_members')
       .select(`
@@ -49,7 +49,7 @@ export default function RankingPage() {
       .eq('room_id', id)
       .order('total_points', { ascending: false })
 
-    // Para cada miembro calcular estadsticas
+    // Para cada miembro calcular estadísticas
     const rankingConStats = await Promise.all(
       miembros.map(async (miembro) => {
         const { data: preds } = await supabase
@@ -179,15 +179,15 @@ export default function RankingPage() {
           onClick={() => router.push(`/sala/${id}`)}
           style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer' }}
         >
-          ? Sala
+          ⬅️ Sala
         </button>
-        <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '1rem' }}>?? Ranking</span>
+        <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '1rem' }}>🏆 Ranking</span>
         <div style={{ width: '60px' }} />
       </nav>
 
       <div style={{ maxWidth: '680px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center' }}>
-          {sala?.name}  {ranking.length} participantes
+          {sala?.name} • {ranking.length} participantes
         </p>
 
         {/* Lista de ranking */}
@@ -213,7 +213,7 @@ export default function RankingPage() {
                 {/* Fila principal */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                   <span style={{ fontSize: index < 3 ? '1.5rem' : '1rem', fontWeight: '700', color: 'var(--text-secondary)', minWidth: '32px', textAlign: 'center' }}>
-                    {index === 0 ? '??' : index === 1 ? '??' : index === 2 ? '??' : `${index + 1}`}
+                    {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `${index + 1}`}
                   </span>
 
                   <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)', flexShrink: 0 }}>
@@ -223,7 +223,7 @@ export default function RankingPage() {
                   <div style={{ flex: 1 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1rem' }}>{miembro.users?.username}</p>
-                      {esYo && <span style={{ fontSize: '0.7rem', backgroundColor: 'var(--accent)', padding: '0.1rem 0.4rem', borderRadius: '0.25rem', color: 'var(--text-primary)' }}>t</span>}
+                      {esYo && <span style={{ fontSize: '0.7rem', backgroundColor: 'var(--accent)', padding: '0.1rem 0.4rem', borderRadius: '0.25rem', color: 'var(--text-primary)' }}>tú</span>}
                     </div>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{miembro.users?.display_name}</p>
                   </div>
@@ -234,7 +234,7 @@ export default function RankingPage() {
                   </div>
                 </div>
 
-                {/* Estadsticas */}
+                {/* Estadísticas */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '0.5rem' }}>
                   {[
                     { label: 'Exactas', value: miembro.stats.exactas, color: 'var(--success)' },
@@ -262,7 +262,7 @@ export default function RankingPage() {
 
                 <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                    {seleccionado ? '? Ocultar predicciones' : '? Ver predicciones'}
+                    {seleccionado ? '👀 Ocultar predicciones' : '👀 Ver predicciones'}
                   </span>
                 </div>
               </div>
@@ -282,7 +282,7 @@ export default function RankingPage() {
                   {loadingPreds ? (
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Cargando predicciones...</p>
                   ) : prediccionesRival.length === 0 ? (
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>No ha hecho predicciones an</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>No ha hecho predicciones aún</p>
                   ) : (
                     Object.values(predsPorGrupo)
                       .sort((a, b) => a.orden - b.orden)
@@ -318,12 +318,12 @@ export default function RankingPage() {
                                   {grupo.puntosObtenidos} / {grupo.puntosMaximos} pts
                                 </span>
                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', width: '16px', textAlign: 'center' }}>
-                                  {isExpanded ? '?' : '?'}
+                                  {isExpanded ? '🔼' : '🔽'}
                                 </span>
                               </div>
                             </div>
                             
-                            {/* Lista de partidos (solo si est expandido) */}
+                            {/* Lista de partidos (solo si está expandido) */}
                             {isExpanded && (
                               <div style={{ display: 'flex', flexDirection: 'column', padding: '0.5rem', gap: '0.5rem', borderTop: '1px solid var(--border)' }}>
                                 {grupo.partidos.map(({ pred, partido }) => (
@@ -336,11 +336,15 @@ export default function RankingPage() {
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'space-between',
+                                      borderLeft: partido.status === 'finished' ? 
+                                        (pred.points_earned === 5 ? '4px solid var(--success)' : 
+                                         pred.points_earned >= 2 ? '4px solid var(--warning)' : 
+                                         '4px solid #f87171') : 'none'
                                     }}
                                   >
                                     <div style={{ flex: 1 }}>
                                       <p style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', marginBottom: '0.2rem' }}>
-                                        {partido.phase === 'group' ? `Grupo ${partido.group_name}  ` : ''}
+                                        {partido.phase === 'group' ? `Grupo ${partido.group_name} • ` : ''}
                                         {partido.round}
                                       </p>
                                       <p style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -352,46 +356,46 @@ export default function RankingPage() {
                                       </p>
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
                                       {partido.status === 'finished' ? (
                                         <>
-                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.15rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', textTransform: 'uppercase' }}>Pred:</span>
-                                              <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.95rem' }}>
-                                                {pred.pred_home_score} - {pred.pred_away_score}
-                                              </span>
-                                            </div>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                              <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', textTransform: 'uppercase' }}>Oficial:</span>
-                                              <span style={{ color: 'var(--accent)', fontWeight: '700', fontSize: '0.85rem' }}>
-                                                {partido.home_score} - {partido.away_score}
-                                              </span>
-                                            </div>
+                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderRight: '1px solid var(--border)', paddingRight: '1rem' }}>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.1rem' }}>Pred</span>
+                                            <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
+                                              {pred.pred_home_score} - {pred.pred_away_score}
+                                            </span>
                                           </div>
+                                          
+                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.1rem' }}>Real</span>
+                                            <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
+                                              {partido.home_score} - {partido.away_score}
+                                            </span>
+                                          </div>
+
                                           {pred.points_earned !== null && (
                                             <span style={{
                                               backgroundColor: pred.points_earned === 5 ? '#166534' : pred.points_earned >= 2 ? '#854d0e' : '#7f1d1d',
                                               color: 'white',
-                                              fontSize: '0.7rem',
+                                              fontSize: '0.75rem',
                                               fontWeight: '700',
-                                              padding: '0.3rem 0.5rem',
+                                              padding: '0.25rem 0.5rem',
                                               borderRadius: '0.4rem',
-                                              marginLeft: '0.25rem',
                                               minWidth: '50px',
-                                              textAlign: 'center'
+                                              textAlign: 'center',
+                                              marginLeft: '0.5rem'
                                             }}>
-                                              +{pred.points_earned} pts
+                                              +{pred.points_earned}pts
                                             </span>
                                           )}
                                         </>
                                       ) : partido.status === 'locked' ? (
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                                          ?? Se revela luego
+                                          🔒 Se revela pronto
                                         </span>
                                       ) : (
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                                          ?? Se revela luego
+                                          💬 Esperando resultado
                                         </span>
                                       )}
                                     </div>
