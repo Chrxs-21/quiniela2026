@@ -5,6 +5,26 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { getBandera } from '@/lib/banderas'
 
+const TEAM_CODES = {
+  'México': 'MEX', 'Sudáfrica': 'RSA', 'Corea del Sur': 'KOR', 'Chequia': 'CZE',
+  'Canadá': 'CAN', 'Suiza': 'SUI', 'Qatar': 'QAT', 'Bosnia y Herzegovina': 'BIH',
+  'Brasil': 'BRA', 'Marruecos': 'MAR', 'Haití': 'HAI', 'Escocia': 'SCO',
+  'Estados Unidos': 'USA', 'Paraguay': 'PAR', 'Australia': 'AUS', 'Turquía': 'TUR',
+  'Alemania': 'GER', 'Curazao': 'CUW', 'Costa de Marfil': 'CIV', 'Ecuador': 'ECU',
+  'Países Bajos': 'NED', 'Japón': 'JPN', 'Túnez': 'TUN', 'Suecia': 'SWE',
+  'Bélgica': 'BEL', 'Egipto': 'EGY', 'Irán': 'IRN', 'Nueva Zelanda': 'NZL',
+  'España': 'ESP', 'Cabo Verde': 'CPV', 'Arabia Saudita': 'KSA', 'Uruguay': 'URU',
+  'Francia': 'FRA', 'Senegal': 'SEN', 'Noruega': 'NOR', 'Iraq': 'IRQ',
+  'Argentina': 'ARG', 'Argelia': 'ALG', 'Austria': 'AUT', 'Jordania': 'JOR',
+  'Portugal': 'POR', 'Colombia': 'COL', 'Uzbekistán': 'UZB', 'DR Congo': 'COD',
+  'Inglaterra': 'ENG', 'Croacia': 'CRO', 'Ghana': 'GHA', 'Panamá': 'PAN'
+}
+
+function getTeamCode(name) {
+  if (!name) return ''
+  return TEAM_CODES[name] || name.substring(0, 3).toUpperCase()
+}
+
 export default function RankingPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -18,7 +38,7 @@ export default function RankingPage() {
   const [partidos, setPartidos] = useState({})
   const [loading, setLoading] = useState(true)
   const [loadingPreds, setLoadingPreds] = useState(false)
-  const [gruposExpandidos, setGruposExpandidos] = useState({})
+  const [gruposExpandidos, setGruposExpandidos] = useState({}) 
 
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -179,7 +199,7 @@ export default function RankingPage() {
           onClick={() => router.push(`/sala/${id}`)}
           style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer' }}
         >
-          ⬅️ Sala
+          ⬅ Sala
         </button>
         <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '1rem' }}>🏆 Ranking</span>
         <div style={{ width: '60px' }} />
@@ -220,15 +240,15 @@ export default function RankingPage() {
                     {miembro.users?.username?.charAt(0).toUpperCase()}
                   </div>
 
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1rem' }}>{miembro.users?.username}</p>
-                      {esYo && <span style={{ fontSize: '0.7rem', backgroundColor: 'var(--accent)', padding: '0.1rem 0.4rem', borderRadius: '0.25rem', color: 'var(--text-primary)' }}>tú</span>}
+                      <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{miembro.users?.username}</p>
+                      {esYo && <span style={{ fontSize: '0.7rem', backgroundColor: 'var(--accent)', padding: '0.1rem 0.4rem', borderRadius: '0.25rem', color: 'white' }}>tú</span>}
                     </div>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>{miembro.users?.display_name}</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{miembro.users?.display_name}</p>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <p style={{ color: 'var(--accent)', fontWeight: '700', fontSize: '1.5rem' }}>{miembro.total_points}</p>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>pts</p>
                   </div>
@@ -262,7 +282,7 @@ export default function RankingPage() {
 
                 <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                    {seleccionado ? '👀 Ocultar predicciones' : '👀 Ver predicciones'}
+                    {seleccionado ? '🙈 Ocultar predicciones' : '👀 Ver predicciones'}
                   </span>
                 </div>
               </div>
@@ -300,11 +320,11 @@ export default function RankingPage() {
                               onMouseOut={e => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
                             >
                               <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>
+                                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
                                   {grupo.nombre}
                                 </span>
                                 {grupo.tipo === 'group' && equiposArray.length > 0 && (
-                                  <div style={{ display: 'flex', gap: '0.2rem' }}>
+                                  <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap' }}>
                                     {equiposArray.map(equipo => (
                                       <span key={equipo} title={equipo} style={{ fontSize: '1.2rem', display: 'inline-block' }}>
                                         {getBandera(equipo)}
@@ -313,17 +333,17 @@ export default function RankingPage() {
                                   </div>
                                 )}
                               </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '600' }}>
                                   {grupo.puntosObtenidos} / {grupo.puntosMaximos} pts
                                 </span>
                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', width: '16px', textAlign: 'center' }}>
-                                  {isExpanded ? '🔼' : '🔽'}
+                                  {isExpanded ? '▼' : '▶'}
                                 </span>
                               </div>
                             </div>
                             
-                            {/* Lista de partidos (solo si está expandido) */}
+                            {/* Lista de partidos compressa (solo si está expandido) */}
                             {isExpanded && (
                               <div style={{ display: 'flex', flexDirection: 'column', padding: '0.5rem', gap: '0.5rem', borderTop: '1px solid var(--border)' }}>
                                 {grupo.partidos.map(({ pred, partido }) => (
@@ -332,70 +352,71 @@ export default function RankingPage() {
                                     style={{
                                       backgroundColor: 'var(--bg-card)',
                                       borderRadius: '0.5rem',
-                                      padding: '0.75rem 1rem',
+                                      padding: '0.75rem 0.5rem',
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'space-between',
-                                      borderLeft: partido.status === 'finished' ? 
-                                        (pred.points_earned === 5 ? '4px solid var(--success)' : 
-                                         pred.points_earned >= 2 ? '4px solid var(--warning)' : 
-                                         '4px solid #f87171') : 'none'
+                                      gap: '0.5rem' // Espaciado natural para móviles
                                     }}
                                   >
-                                    <div style={{ flex: 1 }}>
-                                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.7rem', marginBottom: '0.2rem' }}>
-                                        {partido.phase === 'group' ? `Grupo ${partido.group_name} • ` : ''}
+                                    <div style={{ flex: 1, minWidth: '0' }}>
+                                      <p style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.2rem', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                        {partido.phase === 'group' ? `G.${partido.group_name} • ` : ''}
                                         {partido.round}
                                       </p>
-                                      <p style={{ color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                        <span style={{ fontSize: '1rem' }}>{getBandera(partido.home_team)}</span>
-                                        {partido.home_team}
-                                        <span style={{ color: 'var(--text-secondary)', margin: '0 0.2rem' }}>vs</span>
-                                        {partido.away_team}
-                                        <span style={{ fontSize: '1rem' }}>{getBandera(partido.away_team)}</span>
-                                      </p>
+                                      {/* Contenedor de banderas y nombres abreviados */}
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getBandera(partido.home_team)}</span>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {getTeamCode(partido.home_team)}
+                                        </span>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', margin: '0 0.1rem' }}>vs</span>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {getTeamCode(partido.away_team)}
+                                        </span>
+                                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getBandera(partido.away_team)}</span>
+                                      </div>
                                     </div>
 
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
                                       {partido.status === 'finished' ? (
-                                        <>
-                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', borderRight: '1px solid var(--border)', paddingRight: '1rem' }}>
-                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.1rem' }}>Pred</span>
-                                            <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
-                                              {pred.pred_home_score} - {pred.pred_away_score}
-                                            </span>
-                                          </div>
-                                          
-                                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.1rem' }}>Real</span>
-                                            <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.3rem' }}>
+                                          {/* Resultado Oficial */}
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start' }}>
+                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.6rem', textTransform: 'uppercase', width: '22px' }}>Real:</span>
+                                            <span style={{ color: 'var(--success)', fontWeight: '700', fontSize: '0.85rem' }}>
                                               {partido.home_score} - {partido.away_score}
                                             </span>
                                           </div>
-
-                                          {pred.points_earned !== null && (
-                                            <span style={{
-                                              backgroundColor: pred.points_earned === 5 ? '#166534' : pred.points_earned >= 2 ? '#854d0e' : '#7f1d1d',
-                                              color: 'white',
-                                              fontSize: '0.75rem',
-                                              fontWeight: '700',
-                                              padding: '0.25rem 0.5rem',
-                                              borderRadius: '0.4rem',
-                                              minWidth: '50px',
-                                              textAlign: 'center',
-                                              marginLeft: '0.5rem'
-                                            }}>
-                                              +{pred.points_earned}pts
+                                          {/* Tu Predicción */}
+                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                            <span style={{ color: 'var(--accent)', fontSize: '0.6rem', textTransform: 'uppercase', width: '22px' }}>Pred:</span>
+                                            <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1rem', backgroundColor: 'var(--bg-secondary)', padding: '0.1rem 0.3rem', borderRadius: '0.25rem' }}>
+                                              {pred.pred_home_score} - {pred.pred_away_score}
                                             </span>
-                                          )}
-                                        </>
+                                            {pred.points_earned !== null && (
+                                              <span style={{
+                                                backgroundColor: pred.points_earned === 5 ? '#166534' : pred.points_earned >= 2 ? '#854d0e' : '#7f1d1d',
+                                                color: 'white',
+                                                fontSize: '0.65rem',
+                                                fontWeight: '700',
+                                                padding: '0.15rem 0.3rem',
+                                                borderRadius: '0.4rem',
+                                                minWidth: '28px',
+                                                textAlign: 'center'
+                                              }}>
+                                                +{pred.points_earned}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
                                       ) : partido.status === 'locked' ? (
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                                          🔒 Se revela pronto
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                          🔒 Oculto
                                         </span>
                                       ) : (
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic' }}>
-                                          💬 Esperando resultado
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                          🔒 Oculto
                                         </span>
                                       )}
                                     </div>
