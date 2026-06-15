@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
+import { getBandera } from '@/lib/banderas'
 
 export default function SalaPage() {
   const supabase = createClient()
@@ -11,6 +12,8 @@ export default function SalaPage() {
 
   const [sala, setSala] = useState(null)
   const [miembros, setMiembros] = useState([])
+  const [partidosEnVivo, setPartidosEnVivo] = useState([])
+  const [misPrediccionesLive, setMisPrediccionesLive] = useState({})
   const [currentUser, setCurrentUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [copiado, setCopiado] = useState(false)
@@ -37,6 +40,36 @@ export default function SalaPage() {
 
     if (!salaData) return router.push('/dashboard')
     setSala(salaData)
+
+    // Buscar partidos en juego
+    const { data: matchesData } = await supabase
+      .from('matches')
+      .select('*')
+      .neq('status', 'finished')
+    
+    const now = new Date()
+    // Definimos "En vivo" si ya pasó su hora de inicio (o status === 'locked') y aún no termina
+    const inProgress = (matchesData || []).filter(m => {
+      const isLocked = m.status === 'locked'
+      const isPastStartTime = new Date(m.match_date) <= now
+      return isLocked || isPastStartTime
+    })
+
+    if (inProgress.length > 0) {
+      const matchIds = inProgress.map(m => m.id)
+      const { data: predsData } = await supabase
+        .from('predictions')
+        .select('*')
+        .in('match_id', matchIds)
+        .eq('room_id', id)
+        .eq('user_id', user.id)
+      
+      const predsMap = {}
+      predsData?.forEach(p => { predsMap[p.match_id] = p })
+      setMisPrediccionesLive(predsMap)
+    }
+    
+    setPartidosEnVivo(inProgress.sort((a,b) => new Date(a.match_date) - new Date(b.match_date)))
 
     // Cargar miembros con sus perfiles
     const { data: miembrosData } = await supabase
@@ -83,42 +116,42 @@ export default function SalaPage() {
   }
 
   async function handleAbandonar() {
-  if (!confirm('¿Seguro que quieres abandonar esta sala?')) return
+    if (!confirm('¿Seguro que quieres abandonar esta sala?')) return
 
-  const { data: { user } } = await supabase.auth.getUser()
+    const { data: { user } } = await supabase.auth.getUser()
 
-  await supabase
-    .from('room_members')
-    .delete()
-    .eq('room_id', id)
-    .eq('user_id', user.id)
+    await supabase
+      .from('room_members')
+      .delete()
+      .eq('room_id', id)
+      .eq('user_id', user.id)
 
-  router.push('/dashboard')
-}
+    router.push('/dashboard')
+  }
 
-async function handleEliminarSala() {
-  if (!confirm('¿Eliminar la sala permanentemente? Esta acción no se puede deshacer.')) return
+  async function handleEliminarSala() {
+    if (!confirm('¿Eliminar la sala permanentemente? Esta acción no se puede deshacer.')) return
 
-  // Eliminar predicciones de la sala
-  await supabase
-    .from('predictions')
-    .delete()
-    .eq('room_id', id)
+    // Eliminar predicciones de la sala
+    await supabase
+      .from('predictions')
+      .delete()
+      .eq('room_id', id)
 
-  // Eliminar miembros
-  await supabase
-    .from('room_members')
-    .delete()
-    .eq('room_id', id)
+    // Eliminar miembros
+    await supabase
+      .from('room_members')
+      .delete()
+      .eq('room_id', id)
 
-  // Eliminar sala
-  await supabase
-    .from('rooms')
-    .delete()
-    .eq('id', id)
+    // Eliminar sala
+    await supabase
+      .from('rooms')
+      .delete()
+      .eq('id', id)
 
-  router.push('/dashboard')
-}
+    router.push('/dashboard')
+  }
 
   if (loading) {
     return (
@@ -171,7 +204,7 @@ async function handleEliminarSala() {
           color: 'var(--text-primary)',
           fontSize: '1rem',
         }}>
-          🏟️ {sala?.name}
+          🏆 {sala?.name}
         </span>
         <div style={{ width: '80px' }} />
       </nav>
@@ -226,9 +259,125 @@ async function handleEliminarSala() {
               transition: 'background-color 0.2s',
             }}
           >
-            {copiado ? '✅ Copiado' : '📋 Copiar'}
+            {copiado ? '✓ Copiado' : '📋 Copiar'}
           </button>
         </div>
+
+        {/* Partidos en Vivo (Predicciones activas) */}
+        {partidosEnVivo.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                backgroundColor: '#dc2626',
+                borderRadius: '50%',
+                boxShadow: '0 0 8px #dc2626',
+                animation: 'pulse 2s infinite'
+              }}></span>
+              <h2 style={{
+                color: 'var(--text-primary)',
+                fontSize: '0.95rem',
+                fontWeight: '700',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}>
+                En Juego
+              </h2>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {partidosEnVivo.map(partido => {
+                const pred = misPrediccionesLive[partido.id]
+                return (
+                  <div
+                    key={partido.id}
+                    style={{
+                      backgroundColor: 'var(--bg-card)',
+                      border: '1px solid var(--accent)',
+                      borderRadius: '0.75rem',
+                      padding: '1rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.75rem',
+                      position: 'relative',
+                      overflow: 'hidden'
+                    }}
+                  >
+                    {/* Background accent soft */}
+                    <div style={{
+                      position: 'absolute',
+                      top: 0, left: 0, right: 0, bottom: 0,
+                      backgroundColor: 'var(--accent)',
+                      opacity: 0.05,
+                      pointerEvents: 'none'
+                    }}></div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1 }}>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                        {partido.phase === 'group' ? `Grupo ${partido.group_name}` : partido.round} • #{partido.match_number}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 1 }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '1rem', flex: 1, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <span style={{ fontSize: '1.2rem' }}>{getBandera(partido.home_team)}</span> {partido.home_team}
+                      </span>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: '80px', justifyContent: 'center' }}>
+                        <span style={{ color: 'var(--text-secondary)', fontWeight: '700', fontSize: '1rem' }}>
+                          vs
+                        </span>
+                      </div>
+
+                      <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '1rem', flex: 1, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.4rem' }}>
+                        {partido.away_team} <span style={{ fontSize: '1.2rem' }}>{getBandera(partido.away_team)}</span>
+                      </span>
+                    </div>
+
+                    {/* Mi predicción */}
+                    <div style={{ 
+                      marginTop: '0.25rem', 
+                      backgroundColor: 'var(--bg-secondary)', 
+                      borderRadius: '0.5rem', 
+                      padding: '0.75rem 1rem', 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between',
+                      zIndex: 1,
+                      border: '1px dashed var(--border)'
+                    }}>
+                      <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: '600' }}>Mi predicción:</span>
+                      {pred ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
+                            {pred.pred_home_score} - {pred.pred_away_score}
+                          </span>
+                          {pred.predicted_winner && (
+                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '600', marginLeft: '0.25rem' }}>
+                              ({pred.predicted_winner})
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: '#fca5a5', fontSize: '0.85rem', fontWeight: '600' }}>Sin predicción</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            
+            <style jsx>{`
+              @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+                70% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+              }
+            `}</style>
+          </div>
+        )}
 
         {/* Botones de navegación */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -262,53 +411,54 @@ async function handleEliminarSala() {
               cursor: 'pointer',
             }}
           >
-            🏆 Ranking
+            🥇 Ranking
           </button>
         </div>
+
         {/* Botones de abandonar/eliminar sala */}
         <div style={{ display: 'flex', gap: '1rem' }}>
-        {!esAdmin && (
-            <button
-            onClick={handleAbandonar}
-            style={{
-                flex: 1,
-                backgroundColor: 'transparent',
-                color: '#fca5a5',
-                border: '1px solid #7f1d1d',
-                borderRadius: '0.75rem',
-                padding: '0.875rem',
-                fontSize: '0.95rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-            }}
-            >
-            🚪 Abandonar sala
-            </button>
-        )}
-        {esAdmin && (
-            <button
-            onClick={handleEliminarSala}
-            style={{
-                flex: 1,
-                backgroundColor: '#7f1d1d',
-                color: '#ffffff',
-                border: '1px solid #991b1b',
-                borderRadius: '0.75rem',
-                padding: '0.875rem',
-                fontSize: '0.95rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-            }}
-            >
-            🗑️ Eliminar sala
-            </button>
-        )}
+          {!esAdmin && (
+              <button
+              onClick={handleAbandonar}
+              style={{
+                  flex: 1,
+                  backgroundColor: 'transparent',
+                  color: '#fca5a5',
+                  border: '1px solid #7f1d1d',
+                  borderRadius: '0.75rem',
+                  padding: '0.875rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+              }}
+              >
+              🚪 Abandonar sala
+              </button>
+          )}
+          {esAdmin && (
+              <button
+              onClick={handleEliminarSala}
+              style={{
+                  flex: 1,
+                  backgroundColor: '#7f1d1d',
+                  color: '#ffffff',
+                  border: '1px solid #991b1b',
+                  borderRadius: '0.75rem',
+                  padding: '0.875rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+              }}
+              >
+              🗑️ Eliminar sala
+              </button>
+          )}
 
-                  {esAdmin && (
+          {esAdmin && (
             <button
               onClick={() => router.push(`/sala/${id}/admin`)}
               style={{
-                width: '100%',
+                flex: 1,
                 backgroundColor: 'transparent',
                 color: 'var(--text-secondary)',
                 border: '1px dashed var(--border)',
@@ -323,6 +473,7 @@ async function handleEliminarSala() {
             </button>
           )}
         </div>    
+
         {/* Fase actual */}
         <div style={{
           backgroundColor: 'var(--bg-card)',
@@ -338,9 +489,9 @@ async function handleEliminarSala() {
               Fase actual
             </p>
             <p style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
-              {sala?.phase === 'group' ? '⚽ Fase de Grupos' :
-               sala?.phase === 'knockout' ? '🏆 Eliminatorias' :
-               '🎉 Finalizado'}
+              {sala?.phase === 'group' ? '🎯 Fase de Grupos' :
+               sala?.phase === 'knockout' ? '🔥 Eliminatorias' :
+               '🏁 Finalizado'}
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
