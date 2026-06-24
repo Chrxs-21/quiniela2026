@@ -147,9 +147,9 @@ export default function SalaPage() {
 
   const esAdmin = currentUser?.id === sala?.owner_id
 
-  // ========== LÓGICA PARA PARTIDO EN VIVO Y PRÓXIMO ==========
-  let partidoEnVivo = null
-  let proximoPartido = null
+  // ========== LÓGICA PARA PARTIDOS EN VIVO Y PRÓXIMOS (SIMULTÁNEOS) ==========
+  let partidosEnVivo = []
+  let proximosPartidos = []
 
   for (const match of matches) {
     if (match.status === 'finished') continue
@@ -159,26 +159,32 @@ export default function SalaPage() {
     const fechaFinAprox = new Date(fechaPartido.getTime() + 2 * 60 * 60 * 1000)
 
     if (ahora >= fechaPartido && ahora < fechaFinAprox) {
-      if (!partidoEnVivo) partidoEnVivo = match
+      partidosEnVivo.push(match)
     } else if (ahora < fechaPartido) {
-      if (!proximoPartido) proximoPartido = match
+      proximosPartidos.push(match)
     }
-
-    if (partidoEnVivo && proximoPartido) break
   }
 
-  const mostrarPartido = partidoEnVivo || proximoPartido
-  const predMostrada = mostrarPartido 
-    ? predicciones.find(p => p.match_id === mostrarPartido.id) 
-    : null
+  // Filtrar para mantener solo los que ocurren exactamente a la misma hora
+  if (partidosEnVivo.length > 0) {
+    const primeraFecha = new Date(partidosEnVivo[0].match_date).getTime()
+    partidosEnVivo = partidosEnVivo.filter(m => new Date(m.match_date).getTime() === primeraFecha)
+  }
 
+  if (proximosPartidos.length > 0) {
+    const primeraFecha = new Date(proximosPartidos[0].match_date).getTime()
+    proximosPartidos = proximosPartidos.filter(m => new Date(m.match_date).getTime() === primeraFecha)
+  }
+
+  const mostrarPartidos = partidosEnVivo.length > 0 ? partidosEnVivo : proximosPartidos
+  const mostrarEsEnVivo = partidosEnVivo.length > 0
 
   return (
     <main style={{ minHeight: '100vh', backgroundColor: 'var(--bg-secondary)' }}>
       {/* Navbar */}
       <nav style={{ backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => router.push('/dashboard')} style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          ← Dashboard
+          ◀ Dashboard
         </button>
         <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '1rem' }}>🏆 {sala?.name}</span>
         <div style={{ width: '80px' }} />
@@ -193,84 +199,96 @@ export default function SalaPage() {
             <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '2rem', letterSpacing: '0.5rem' }}>{sala?.code}</p>
           </div>
           <button onClick={handleCopiarCodigo} style={{ backgroundColor: copiado ? '#166534' : 'var(--accent)', color: 'white', border: 'none', borderRadius: '0.75rem', padding: '0.75rem 1.25rem', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', transition: 'background-color 0.2s' }}>
-            {copiado ? '✓ Copiado' : '📋 Copiar'}
+            {copiado ? '✓ Copiado' : '📄 Copiar'}
           </button>
         </div>
 
-        {/* ========== CARD PARTIDO EN VIVO O PRÓXIMO ========== */}
-        {mostrarPartido && (
+        {/* ========== CARDS DE PARTIDOS EN VIVO O PRÓXIMOS ========== */}
+        {mostrarPartidos.length > 0 && (
           <div style={{
-            backgroundColor: partidoEnVivo ? '#2d1f5e' : 'var(--bg-card)',
-            border: `1px solid ${partidoEnVivo ? '#5b3fa6' : 'var(--border)'}`,
-            borderRadius: '1rem',
-            padding: '1.25rem 1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '1rem'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{
-                  color: partidoEnVivo ? '#a78bfa' : 'var(--text-secondary)',
-                  fontSize: '0.8rem',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
+            {mostrarPartidos.map(partido => {
+              const predMostrada = predicciones.find(p => p.match_id === partido.id)
+
+              return (
+                <div key={partido.id} style={{
+                  backgroundColor: mostrarEsEnVivo ? '#2d1f5e' : 'var(--bg-card)',
+                  border: `1px solid ${mostrarEsEnVivo ? '#5b3fa6' : 'var(--border)'}`,
+                  borderRadius: '1rem',
+                  padding: '1.25rem 1.5rem',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
+                  flexDirection: 'column',
+                  gap: '1rem',
                 }}>
-                  {partidoEnVivo ? '🔴 Partido En Vivo' : '🔜 Próximo Partido'}
-                </p>
-                <p style={{ color: partidoEnVivo ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.2rem' }}>
-                  {mostrarPartido.phase === 'group' ? `Grupo ${mostrarPartido.group_name} • ` : ''}{mostrarPartido.round} - {new Date(mostrarPartido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                </p>
-              </div>
-            </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{
+                        color: mostrarEsEnVivo ? '#a78bfa' : 'var(--text-secondary)',
+                        fontSize: '0.8rem',
+                        fontWeight: '700',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                      }}>
+                        {mostrarEsEnVivo ? '🔴 Partido En Vivo' : '🔜 Próximo Partido'}
+                      </p>
+                      <p style={{ color: mostrarEsEnVivo ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.2rem' }}>
+                        {partido.phase === 'group' ? `Grupo ${partido.group_name} • ` : ''}{partido.round} - {new Date(partido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-              {/* Equipo Local Acortado */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-end' }}>
-                <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '1.1rem' }}>
-                  {abreviar(mostrarPartido.home_team)}
-                </span>
-                <span style={{ fontSize: '1.5rem' }}>{getBandera(mostrarPartido.home_team)}</span>
-              </div>
-              
-              {/* Score / Predicción en medio */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', minWidth: '90px' }}>
-                <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.25rem', backgroundColor: partidoEnVivo ? 'rgba(0,0,0,0.2)' : 'var(--bg-secondary)', padding: '0.25rem 0.75rem', borderRadius: '0.5rem', border: !partidoEnVivo ? '1px solid var(--border)': 'none' }}>
-                  {predMostrada ? `${predMostrada.pred_home_score} - ${predMostrada.pred_away_score}` : '- : -'}
-                </span>
-                <span style={{ color: predMostrada ? 'var(--success)' : 'var(--warning)', fontSize: '0.65rem', fontWeight: '600', marginTop: '0.1rem' }}>
-                  {predMostrada ? 'Tu predicción' : 'Sin predicción'}
-                </span>
-              </div>
-              
-              {/* Equipo Visitante Acortado */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-start' }}>
-                <span style={{ fontSize: '1.5rem' }}>{getBandera(mostrarPartido.away_team)}</span>
-                <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '1.1rem' }}>
-                  {abreviar(mostrarPartido.away_team)}
-                </span>
-              </div>
-            </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                    {/* Equipo Local Acortado */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-end' }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '1.1rem' }}>
+                        {abreviar(partido.home_team)}
+                      </span>
+                      <span style={{ fontSize: '1.5rem' }}>{getBandera(partido.home_team)}</span>
+                    </div>
+                    
+                    {/* Score / Predicción en medio */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', minWidth: '90px' }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.25rem', backgroundColor: mostrarEsEnVivo ? 'rgba(0,0,0,0.2)' : 'var(--bg-secondary)', padding: '0.25rem 0.75rem', borderRadius: '0.5rem', border: !mostrarEsEnVivo ? '1px solid var(--border)': 'none' }}>
+                        {predMostrada ? `${predMostrada.pred_home_score} - ${predMostrada.pred_away_score}` : '- : -'}
+                      </span>
+                      <span style={{ color: predMostrada ? 'var(--success)' : 'var(--warning)', fontSize: '0.65rem', fontWeight: '600', marginTop: '0.1rem' }}>
+                        {predMostrada ? 'Tu predicción' : 'Sin predicción'}
+                      </span>
+                    </div>
+                    
+                    {/* Equipo Visitante Acortado */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1, justifyContent: 'flex-start' }}>
+                      <span style={{ fontSize: '1.5rem' }}>{getBandera(partido.away_team)}</span>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: '600', fontSize: '1.1rem' }}>
+                        {abreviar(partido.away_team)}
+                      </span>
+                    </div>
+                  </div>
 
-            {/* En caso de que sea en vivo, hubieras predicho empate, y fuera de eliminatorias (tiempo extendido) */}
-            {partidoEnVivo && predMostrada && mostrarPartido.phase === 'knockout' && predMostrada.pred_home_score === predMostrada.pred_away_score && predMostrada.predicted_winner && (
-              <div style={{ textAlign: 'center', marginTop: '-0.5rem' }}>
-                 <p style={{ color: partidoEnVivo ? '#a78bfa' : 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '600' }}>
-                   Avanza: {predMostrada.predicted_winner}
-                 </p>
-              </div>
-            )}
+                  {/* En caso de que sea en vivo, hubieras predicho empate, y fuera de eliminatorias (tiempo extendido) */}
+                  {mostrarEsEnVivo && predMostrada && partido.phase === 'knockout' && predMostrada.pred_home_score === predMostrada.pred_away_score && predMostrada.predicted_winner && (
+                    <div style={{ textAlign: 'center', marginTop: '-0.5rem' }}>
+                       <p style={{ color: mostrarEsEnVivo ? '#a78bfa' : 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '600' }}>
+                         Avanza: {predMostrada.predicted_winner}
+                       </p>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
 
         {/* Botones de navegación */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <button onClick={() => router.push(`/sala/${id}/partidos`)} style={{ flex: 1, backgroundColor: 'var(--accent)', color: 'white', border: 'none', borderRadius: '0.75rem', padding: '1rem', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer' }}>
-            ⚽ Partidos
+            📅 Partidos
           </button>
           <button onClick={() => router.push(`/sala/${id}/ranking`)} style={{ flex: 1, backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '1rem', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer' }}>
             🏆 Ranking
@@ -301,7 +319,7 @@ export default function SalaPage() {
           <div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Fase actual</p>
             <p style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
-              {sala?.phase === 'group' ? '📅 Fase de Grupos' : sala?.phase === 'knockout' ? '⚔️ Eliminatorias' : '🏁 Finalizado'}
+              {sala?.phase === 'group' ? '⚽ Fase de Grupos' : sala?.phase === 'knockout' ? '🔥 Eliminatorias' : '🏁 Finalizado'}
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>
