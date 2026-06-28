@@ -77,41 +77,33 @@ export default function PartidosPage() {
       }
     })
 
-    try {
-      const roundsDesc = ['final', 'SF', 'QF', 'R16', 'R32']
-      for (let i = 0; i < roundsDesc.length - 1; i++) {
-        const currentRound = roundsDesc[i]
-        const prevRound = roundsDesc[i + 1]
-        
-        if (knockoutByRound[currentRound] && knockoutByRound[prevRound]) {
-          const expectedOrder = []
-          knockoutByRound[currentRound].forEach(match => {
-            if (match.home_team && typeof match.home_team === 'string' && match.home_team.startsWith('W')) {
-              expectedOrder.push(parseInt(match.home_team.substring(1), 10))
-            }
-            if (match.away_team && typeof match.away_team === 'string' && match.away_team.startsWith('W')) {
-              expectedOrder.push(parseInt(match.away_team.substring(1), 10))
-            }
-          })
-          
-          if (expectedOrder.length > 0) {
-            const sortedPrevRound = [...knockoutByRound[prevRound]].sort((a, b) => {
-              const numA = parseInt(a.match_number, 10)
-              const numB = parseInt(b.match_number, 10)
-              const idxA = expectedOrder.indexOf(numA)
-              const idxB = expectedOrder.indexOf(numB)
-              
-              if (idxA !== -1 && idxB !== -1) return idxA - idxB
-              if (idxA !== -1) return -1
-              if (idxB !== -1) return 1
-              return (numA || 0) - (numB || 0)
-            })
-            knockoutByRound[prevRound] = sortedPrevRound
+    const roundsDesc = ['final', 'SF', 'QF', 'R16', 'R32']
+    for (let i = 0; i < roundsDesc.length - 1; i++) {
+      const currentRound = roundsDesc[i]
+      const prevRound = roundsDesc[i + 1]
+      
+      if (knockoutByRound[currentRound] && knockoutByRound[prevRound]) {
+        const expectedOrder = []
+        knockoutByRound[currentRound].forEach(match => {
+          if (match.home_team?.startsWith('W')) {
+            expectedOrder.push(parseInt(match.home_team.substring(1)))
           }
+          if (match.away_team?.startsWith('W')) {
+            expectedOrder.push(parseInt(match.away_team.substring(1)))
+          }
+        })
+        
+        if (expectedOrder.length > 0) {
+          knockoutByRound[prevRound].sort((a, b) => {
+            const idxA = expectedOrder.indexOf(a.match_number)
+            const idxB = expectedOrder.indexOf(b.match_number)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return a.match_number - b.match_number
+          })
         }
       }
-    } catch (e) {
-      console.error('Error sorting knockout matches', e)
     }
 
     setGrupos(grouped)
