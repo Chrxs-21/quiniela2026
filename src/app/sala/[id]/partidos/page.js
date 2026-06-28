@@ -5,14 +5,14 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { getBandera } from '@/lib/banderas'
 
-const RONDAS_ORDER = ['Round of 16', 'Round of 8', 'Quarter Finals', 'Semi Finals', 'Final']
+const RONDAS_ORDER = ['R32', 'R16', 'QF', 'SF', '3rd', 'final']
 const RONDAS_LABEL = {
-  'Round of 16': '16vos de Final',
-  'Round of 8': '8vos de Final',
-  'Quarter Finals': 'Cuartos de Final',
-  'Semi Finals': 'Semifinales',
-  'Third Place': 'Tercer Lugar',
-  'Final': 'Final',
+  'R32': '16vos de Final',
+  'R16': '8vos de Final',
+  'QF': 'Cuartos de Final',
+  'SF': 'Semifinales',
+  '3rd': 'Tercer Lugar',
+  'final': 'Final',
 }
 
 export default function PartidosPage() {
@@ -76,6 +76,35 @@ export default function PartidosPage() {
         knockoutByRound[match.round].push(match)
       }
     })
+
+    const roundsDesc = ['final', 'SF', 'QF', 'R16', 'R32']
+    for (let i = 0; i < roundsDesc.length - 1; i++) {
+      const currentRound = roundsDesc[i]
+      const prevRound = roundsDesc[i + 1]
+      
+      if (knockoutByRound[currentRound] && knockoutByRound[prevRound]) {
+        const expectedOrder = []
+        knockoutByRound[currentRound].forEach(match => {
+          if (match.home_team?.startsWith('W')) {
+            expectedOrder.push(parseInt(match.home_team.substring(1)))
+          }
+          if (match.away_team?.startsWith('W')) {
+            expectedOrder.push(parseInt(match.away_team.substring(1)))
+          }
+        })
+        
+        if (expectedOrder.length > 0) {
+          knockoutByRound[prevRound].sort((a, b) => {
+            const idxA = expectedOrder.indexOf(a.match_number)
+            const idxB = expectedOrder.indexOf(b.match_number)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return a.match_number - b.match_number
+          })
+        }
+      }
+    }
 
     setGrupos(grouped)
     setKnockout(knockoutByRound)
