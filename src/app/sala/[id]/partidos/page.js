@@ -77,6 +77,35 @@ export default function PartidosPage() {
       }
     })
 
+    const backwardsRounds = ['Final', 'Semi Finals', 'Quarter Finals', 'Round of 8', 'Round of 16']
+    for (let i = 0; i < backwardsRounds.length - 1; i++) {
+      const currentRound = backwardsRounds[i]
+      const prevRound = backwardsRounds[i + 1]
+      
+      if (knockoutByRound[currentRound] && knockoutByRound[prevRound]) {
+        const expectedOrder = []
+        knockoutByRound[currentRound].forEach(match => {
+          if (match.home_team && match.home_team.startsWith('W')) {
+            expectedOrder.push(parseInt(match.home_team.substring(1), 10))
+          }
+          if (match.away_team && match.away_team.startsWith('W')) {
+            expectedOrder.push(parseInt(match.away_team.substring(1), 10))
+          }
+        })
+        
+        if (expectedOrder.length > 0) {
+          knockoutByRound[prevRound].sort((a, b) => {
+            const idxA = expectedOrder.indexOf(a.match_number)
+            const idxB = expectedOrder.indexOf(b.match_number)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return a.match_number - b.match_number
+          })
+        }
+      }
+    }
+
     setGrupos(grouped)
     setKnockout(knockoutByRound)
 
@@ -696,7 +725,7 @@ export default function PartidosPage() {
                           style={{ backgroundColor: 'var(--bg-card)', border: `1px solid ${borderColor}`, borderRadius: '0.75rem', padding: '0.75rem 1rem', cursor: bloqueado ? 'default' : 'pointer', transition: 'border-color 0.2s', marginTop: 'auto', marginBottom: 'auto' }}
                         >
                           <div style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.5rem', textAlign: 'center', fontWeight: '600' }}>
-                            {new Date(partido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            {new Date(partido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }
                           </div>
 
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
