@@ -155,6 +155,8 @@ export default function PartidosPage() {
 
   function abrirModal(partido) {
     if (!knockoutUnlocked && partido.phase === 'knockout') return
+    const estado = getEstadoPartido(partido)
+    if (estado === 'locked' || estado === 'finished') return
     const pred = predicciones[partido.id]
     setPredHome(pred ? pred.pred_home_score : 0)
     setPredAway(pred ? pred.pred_away_score : 0)
@@ -212,10 +214,10 @@ export default function PartidosPage() {
       if (!partido) return slot
       const pred = bracketPreds[partido.id]
       if (!pred) return slot
-      const homeResuelto = resolverEquipo(partido.home_team, profundidad + 1)
-      const awayResuelto = resolverEquipo(partido.away_team, profundidad + 1)
-      if (pred.winner === homeResuelto) return awayResuelto
-      if (pred.winner === awayResuelto) return homeResuelto
+      
+      if (pred.winner === partido.home_team) return resolverEquipo(partido.away_team, profundidad + 1)
+      if (pred.winner === partido.away_team) return resolverEquipo(partido.home_team, profundidad + 1)
+      
       return slot
     }
 
@@ -224,7 +226,8 @@ export default function PartidosPage() {
 
   function abrirModalKnockout(partido) {
     if (!knockoutUnlocked) return
-    if (partido.status === 'locked' || partido.status === 'finished') return
+    const estado = getEstadoPartido(partido)
+    if (estado === 'locked' || estado === 'finished') return
 
     const homeResuelto = resolverEquipo(partido.home_team)
     const awayResuelto = resolverEquipo(partido.away_team)
@@ -649,15 +652,15 @@ export default function PartidosPage() {
                               </div>
 
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                                <span style={{ color: predK?.winner === homeResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === homeResuelto ? '700' : '600' }}>
-                                  {predK?.winner === homeResuelto && '✓ '}{homeResuelto}
+                                <span style={{ color: predK?.winner === partido.home_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.home_team ? '700' : '600' }}>
+                                  {predK?.winner === partido.home_team && '✓ '}{homeResuelto}
                                 </span>
                                 {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.home}</span>}
                               </div>
                               <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ color: predK?.winner === awayResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === awayResuelto ? '700' : '600' }}>
-                                  {predK?.winner === awayResuelto && '✓ '}{awayResuelto}
+                                <span style={{ color: predK?.winner === partido.away_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.away_team ? '700' : '600' }}>
+                                  {predK?.winner === partido.away_team && '✓ '}{awayResuelto}
                                 </span>
                                 {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.away}</span>}
                               </div>
@@ -727,15 +730,15 @@ export default function PartidosPage() {
                           </div>
 
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                            <span style={{ color: predK?.winner === homeResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === homeResuelto ? '700' : '600' }}>
-                              {predK?.winner === homeResuelto && '✓ '}{homeResuelto}
+                            <span style={{ color: predK?.winner === partido.home_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.home_team ? '700' : '600' }}>
+                              {predK?.winner === partido.home_team && '✓ '}{homeResuelto}
                             </span>
                             {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.home}</span>}
                           </div>
                           <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: predK?.winner === awayResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === awayResuelto ? '700' : '600' }}>
-                              {predK?.winner === awayResuelto && '✓ '}{awayResuelto}
+                            <span style={{ color: predK?.winner === partido.away_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.away_team ? '700' : '600' }}>
+                              {predK?.winner === partido.away_team && '✓ '}{awayResuelto}
                             </span>
                             {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.away}</span>}
                           </div>
@@ -794,13 +797,16 @@ export default function PartidosPage() {
               <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '0.75rem', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <p style={{ color: 'var(--warning)', fontSize: '0.82rem', fontWeight: '600', textAlign: 'center' }}>⚠️ Empate en 120min 👉 ¿Quién avanza en tiempo extra?</p>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  {[resolverEquipo(modalKnockout.home_team), resolverEquipo(modalKnockout.away_team)].map(equipo => (
+                  {[
+                    { slot: modalKnockout.home_team, name: resolverEquipo(modalKnockout.home_team) },
+                    { slot: modalKnockout.away_team, name: resolverEquipo(modalKnockout.away_team) }
+                  ].map(equipo => (
                     <button
-                      key={equipo}
-                      onClick={() => setGanadorManual(equipo)}
-                      style={{ flex: 1, backgroundColor: ganadorManual === equipo ? 'var(--accent)' : 'var(--bg-card)', color: ganadorManual === equipo ? 'white' : 'var(--text-secondary)', border: `1px solid ${ganadorManual === equipo ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '0.5rem', padding: '0.6rem', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                      key={equipo.slot}
+                      onClick={() => setGanadorManual(equipo.slot)}
+                      style={{ flex: 1, backgroundColor: ganadorManual === equipo.slot ? 'var(--accent)' : 'var(--bg-card)', color: ganadorManual === equipo.slot ? 'white' : 'var(--text-secondary)', border: `1px solid ${ganadorManual === equipo.slot ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '0.5rem', padding: '0.6rem', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
                     >
-                      {equipo}
+                      {equipo.name}
                     </button>
                   ))}
                 </div>
