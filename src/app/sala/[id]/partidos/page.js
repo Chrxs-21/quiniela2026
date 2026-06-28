@@ -54,9 +54,7 @@ export default function PartidosPage() {
       .maybeSingle()
     setSala(salaData)
 
-    const fechaDesbloqueo = new Date('2026-07-02')
-    const hoy = new Date()
-    const unlocked = salaData?.knockout_unlocked || hoy >= fechaDesbloqueo
+    const unlocked = true // Fase de eliminatorias activada globalmente
     setKnockoutUnlocked(unlocked)
 
     const { data: matches } = await supabase
