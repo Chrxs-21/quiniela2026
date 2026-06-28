@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { getBandera } from '@/lib/banderas'
 
-const RONDAS_ORDER = ['Round of 16', 'Round of 8', 'Quarter Finals', 'Semi Finals', 'Third Place', 'Final']
+const RONDAS_ORDER = ['Round of 16', 'Round of 8', 'Quarter Finals', 'Semi Finals', 'Final']
 const RONDAS_LABEL = {
   'Round of 16': '16vos de Final',
   'Round of 8': '8vos de Final',
@@ -377,7 +377,7 @@ export default function PartidosPage() {
       {/* Tabs */}
       <div style={{ backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '0 1.5rem', display: 'flex', justifyContent: 'center' }}>
         {[
-          { key: 'groups', label: '⚽ Fase de Grupos' },
+          { key: 'groups', label: '🏟️ Fase de Grupos' },
           { key: 'knockout', label: '🏆 Eliminatorias' },
         ].map(t => (
           <button
@@ -408,7 +408,7 @@ export default function PartidosPage() {
           onMouseOver={e => e.currentTarget.style.color = 'var(--text-primary)'}
           onMouseOut={e => e.currentTarget.style.color = 'var(--text-secondary)'}
         >
-          📋 Ver sistema de puntos
+          ℹ️ Ver sistema de puntos
         </button>
       </div>
 
@@ -438,7 +438,7 @@ export default function PartidosPage() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
                         <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>Grupo {letra}</span>
-                        {completo && <span>✅</span>}
+                        {completo && <span>✓</span>}
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                         {[...new Set(partidos.flatMap(p => [p.home_team, p.away_team]))].slice(0, 4).map(equipo => (
@@ -509,7 +509,7 @@ export default function PartidosPage() {
 
                     <div style={{ padding: '0.4rem 1rem', backgroundColor: 'var(--bg-secondary)' }}>
                       <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem' }}>
-                        🟣 Los 2 primeros clasifican · DG = Diferencia de goles
+                        ℹ️ Los 2 primeros clasifican • DG = Diferencia de goles
                       </span>
                     </div>
                   </div>
@@ -560,8 +560,8 @@ export default function PartidosPage() {
                             <div style={{ fontSize: '0.8rem', fontWeight: '600' }}>
                               {estado === 'pending' && <span style={{ color: 'var(--accent)' }}>+ Predecir</span>}
                               {estado === 'locked' && <span style={{ color: 'var(--muted)' }}>🔒 Cerrado</span>}
-                              {estado === 'predicted' && <span style={{ color: 'var(--success)' }}>✅ Guardado</span>}
-                              {estado === 'finished' && pred && <span style={{ color: 'var(--text-secondary)' }}>{pred.points_earned ?? '?'} pts</span>}
+                              {estado === 'predicted' && <span style={{ color: 'var(--success)' }}>✓ Guardado</span>}
+                              {estado === 'finished' && pred && <span style={{ color: 'var(--text-secondary)' }}>{pred.points_earned ?? '0'} pts</span>}
                               {estado === 'finished' && !pred && <span style={{ color: 'var(--text-secondary)' }}>Sin pred</span>}
                             </div>
                           </div>
@@ -590,14 +590,97 @@ export default function PartidosPage() {
           )}
 
           <div style={{ overflowX: 'auto', padding: '2rem 1.5rem', filter: knockoutUnlocked ? 'none' : 'blur(3px)' }}>
-            <div style={{ display: 'flex', gap: '1.5rem', minWidth: 'max-content', alignItems: 'flex-start', paddingBottom: '1rem' }}>
-              {RONDAS_ORDER.map(ronda => (
-                <div key={ronda} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', minWidth: '190px' }}>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', marginBottom: '0.5rem' }}>
-                    {RONDAS_LABEL[ronda]}
+            <div style={{ display: 'flex', gap: '2.5rem', minWidth: 'max-content', alignItems: 'stretch', paddingBottom: '1rem' }}>
+              {RONDAS_ORDER.map((ronda, rondaIndex) => {
+                if (ronda === 'Third Place') return null;
+
+                return (
+                  <div key={ronda} style={{ display: 'flex', flexDirection: 'column', minWidth: '220px' }}>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', marginBottom: '1.5rem' }}>
+                      {RONDAS_LABEL[ronda]}
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-around', gap: '1rem' }}>
+                      {knockout[ronda]?.map(partido => {
+                        const estado = getEstadoPartido(partido)
+                        const predK = bracketPreds[partido.id]
+                        const homeResuelto = resolverEquipo(partido.home_team)
+                        const awayResuelto = resolverEquipo(partido.away_team)
+                        const tienePred = !!predK
+                        const bloqueado = !knockoutUnlocked || estado === 'locked' || estado === 'finished'
+                        const borderColor = estado === 'finished' ? '#4a3872' : tienePred ? '#166534' : 'var(--border)'
+
+                        return (
+                          <div key={partido.id} style={{ position: 'relative' }}>
+                            <div
+                              onClick={() => !bloqueado && abrirModalKnockout(partido)}
+                              style={{ backgroundColor: 'var(--bg-card)', border: `1px solid ${borderColor}`, borderRadius: '0.75rem', padding: '0.75rem 1rem', cursor: bloqueado ? 'default' : 'pointer', transition: 'border-color 0.2s', position: 'relative', zIndex: 2 }}
+                              onMouseOver={e => { if (!bloqueado) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                              onMouseOut={e => { e.currentTarget.style.borderColor = borderColor }}
+                            >
+                              <div style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.5rem', textAlign: 'center', fontWeight: '600' }}>
+                                {new Date(partido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </div>
+
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                                <span style={{ color: predK?.winner === homeResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === homeResuelto ? '700' : '600' }}>
+                                  {predK?.winner === homeResuelto && '✓ '}{homeResuelto}
+                                </span>
+                                {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.home}</span>}
+                              </div>
+                              <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ color: predK?.winner === awayResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === awayResuelto ? '700' : '600' }}>
+                                  {predK?.winner === awayResuelto && '✓ '}{awayResuelto}
+                                </span>
+                                {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.away}</span>}
+                              </div>
+                              <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                                {!tienePred && knockoutUnlocked && estado !== 'locked' && estado !== 'finished' && (() => {
+                                  const homeR = resolverEquipo(partido.home_team)
+                                  const awayR = resolverEquipo(partido.away_team)
+                                  const pendiente = homeR.startsWith('W') || homeR.startsWith('L') || awayR.startsWith('W') || awayR.startsWith('L')
+                                  return pendiente
+                                    ? <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>⏳ Equipos por definir</span>
+                                    : <span style={{ color: 'var(--accent)', fontSize: '0.7rem' }}>+ Predecir</span>
+                                })()}
+                                {tienePred && estado !== 'finished' && <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✓ Guardado</span>}
+                                {estado === 'locked' && <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>🔒 Cerrado</span>}
+                                {estado === 'finished' && <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{predicciones[partido.id]?.points_earned ?? '0'} pts</span>}
+                              </div>
+                            </div>
+
+                            {/* Flecha conectora */}
+                            {ronda !== 'Final' && (
+                              <div style={{
+                                position: 'absolute',
+                                top: '50%',
+                                right: '-1.8rem',
+                                transform: 'translateY(-50%)',
+                                color: 'var(--text-secondary)',
+                                opacity: 0.4,
+                                fontSize: '1.2rem',
+                                zIndex: 1,
+                                pointerEvents: 'none'
+                              }}>
+                                →
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+
+              {/* Tercer lugar */}
+              {knockout['Third Place'] && (
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: '220px', marginLeft: '2rem' }}>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', textAlign: 'center', marginBottom: '1.5rem' }}>
+                    {RONDAS_LABEL['Third Place']}
                   </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: ronda === 'Round of 16' ? '0.5rem' : ronda === 'Round of 8' ? '2rem' : ronda === 'Quarter Finals' ? '5rem' : '1rem', justifyContent: 'center' }}>
-                    {knockout[ronda]?.map(partido => {
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'flex-start', gap: '1rem' }}>
+                    {knockout['Third Place']?.map(partido => {
                       const estado = getEstadoPartido(partido)
                       const predK = bracketPreds[partido.id]
                       const homeResuelto = resolverEquipo(partido.home_team)
@@ -610,20 +693,22 @@ export default function PartidosPage() {
                         <div
                           key={partido.id}
                           onClick={() => !bloqueado && abrirModalKnockout(partido)}
-                          style={{ backgroundColor: 'var(--bg-card)', border: `1px solid ${borderColor}`, borderRadius: '0.75rem', padding: '0.75rem 1rem', cursor: bloqueado ? 'default' : 'pointer', transition: 'border-color 0.2s' }}
-                          onMouseOver={e => { if (!bloqueado) e.currentTarget.style.borderColor = 'var(--accent)' }}
-                          onMouseOut={e => { e.currentTarget.style.borderColor = borderColor }}
+                          style={{ backgroundColor: 'var(--bg-card)', border: `1px solid ${borderColor}`, borderRadius: '0.75rem', padding: '0.75rem 1rem', cursor: bloqueado ? 'default' : 'pointer', transition: 'border-color 0.2s', marginTop: 'auto', marginBottom: 'auto' }}
                         >
+                          <div style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', marginBottom: '0.5rem', textAlign: 'center', fontWeight: '600' }}>
+                            {new Date(partido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </div>
+
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
                             <span style={{ color: predK?.winner === homeResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === homeResuelto ? '700' : '600' }}>
-                              {predK?.winner === homeResuelto && '→ '}{homeResuelto}
+                              {predK?.winner === homeResuelto && '✓ '}{homeResuelto}
                             </span>
                             {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.home}</span>}
                           </div>
                           <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ color: predK?.winner === awayResuelto ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === awayResuelto ? '700' : '600' }}>
-                              {predK?.winner === awayResuelto && '→ '}{awayResuelto}
+                              {predK?.winner === awayResuelto && '✓ '}{awayResuelto}
                             </span>
                             {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.away}</span>}
                           </div>
@@ -636,16 +721,16 @@ export default function PartidosPage() {
                                 ? <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>⏳ Equipos por definir</span>
                                 : <span style={{ color: 'var(--accent)', fontSize: '0.7rem' }}>+ Predecir</span>
                             })()}
-                            {tienePred && estado !== 'finished' && <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✅ Guardado</span>}
+                            {tienePred && estado !== 'finished' && <span style={{ color: 'var(--success)', fontSize: '0.7rem' }}>✓ Guardado</span>}
                             {estado === 'locked' && <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>🔒 Cerrado</span>}
-                            {estado === 'finished' && <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{predicciones[partido.id]?.points_earned ?? '?'} pts</span>}
+                            {estado === 'finished' && <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{predicciones[partido.id]?.points_earned ?? '0'} pts</span>}
                           </div>
                         </div>
                       )
                     })}
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -656,7 +741,6 @@ export default function PartidosPage() {
         <div onClick={() => { setModalKnockout(null); setGanadorManual(null) }} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 50 }}>
           <div onClick={e => e.stopPropagation()} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1.5rem', padding: '2rem', width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ textAlign: 'center' }}>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{modalKnockout.round} · #{modalKnockout.match_number}</p>
               <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
                 {resolverEquipo(modalKnockout.home_team)} vs {resolverEquipo(modalKnockout.away_team)}
               </p>
@@ -681,7 +765,7 @@ export default function PartidosPage() {
 
             {predHomeK === predAwayK && (
               <div style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '0.75rem', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <p style={{ color: 'var(--warning)', fontSize: '0.82rem', fontWeight: '600', textAlign: 'center' }}>⚠️ Empate en 120min → ¿Quién avanza en tiempo extra?</p>
+                <p style={{ color: 'var(--warning)', fontSize: '0.82rem', fontWeight: '600', textAlign: 'center' }}>⚠️ Empate en 120min 👉 ¿Quién avanza en tiempo extra?</p>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   {[resolverEquipo(modalKnockout.home_team), resolverEquipo(modalKnockout.away_team)].map(equipo => (
                     <button
@@ -702,7 +786,7 @@ export default function PartidosPage() {
                 disabled={guardandoKnockout || (predHomeK === predAwayK && !ganadorManual)}
                 style={{ backgroundColor: (guardandoKnockout || (predHomeK === predAwayK && !ganadorManual)) ? 'var(--border)' : 'var(--accent)', color: 'var(--text-primary)', border: 'none', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '1rem', fontWeight: '600', cursor: (guardandoKnockout || (predHomeK === predAwayK && !ganadorManual)) ? 'not-allowed' : 'pointer' }}
               >
-                {guardandoKnockout ? 'Guardando...' : predHomeK === predAwayK && !ganadorManual ? 'Selecciona quién avanza' : '✅ Guardar Predicción'}
+                {guardandoKnockout ? 'Guardando...' : predHomeK === predAwayK && !ganadorManual ? 'Selecciona quién avanza' : '💾 Guardar Predicción'}
               </button>
               <button onClick={() => { setModalKnockout(null); setGanadorManual(null) }} style={{ backgroundColor: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '0.95rem', cursor: 'pointer' }}>
                 Cancelar
@@ -718,7 +802,7 @@ export default function PartidosPage() {
           <div onClick={e => e.stopPropagation()} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1.5rem', padding: '2rem', width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
-                {modalPartido.phase === 'group' ? `Grupo ${modalPartido.group_name} · ` : ''}
+                {modalPartido.phase === 'group' ? `Grupo ${modalPartido.group_name} • ` : ''}
                 {new Date(modalPartido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short' })}
               </p>
               <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
@@ -745,7 +829,7 @@ export default function PartidosPage() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <button onClick={handleGuardarPrediccion} disabled={guardando} style={{ backgroundColor: guardando ? 'var(--border)' : 'var(--accent)', color: 'var(--text-primary)', border: 'none', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '1rem', fontWeight: '600', cursor: guardando ? 'not-allowed' : 'pointer' }}>
-                {guardando ? 'Guardando...' : '✅ Guardar Predicción'}
+                {guardando ? 'Guardando...' : '💾 Guardar Predicción'}
               </button>
               <button onClick={() => setModalPartido(null)} style={{ backgroundColor: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '0.95rem', cursor: 'pointer' }}>
                 Cancelar
@@ -760,14 +844,14 @@ export default function PartidosPage() {
         <div onClick={() => setModalPuntosGrupos(false)} style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', zIndex: 60 }}>
           <div onClick={e => e.stopPropagation()} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1.5rem', padding: '2rem', width: '100%', maxWidth: '380px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⚽</div>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>ℹ️</div>
               <h2 style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.25rem', marginBottom: '0.25rem' }}>Sistema de Puntos</h2>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Fase de Grupos</p>
             </div>
             {[
               { pts: 5, icon: '🎯', titulo: 'Resultado Exacto', desc: 'Predijiste 2-1 y fue 2-1' },
-              { pts: 3, icon: '✅', titulo: 'Ganador + Goles de un equipo', desc: 'Predijiste 2-1, fue 2-0 (ganador y goles locales)' },
-              { pts: 2, icon: '👍', titulo: 'Solo tendencia correcta', desc: 'Predijiste 2-1, fue 3-0 (solo acertaste ganador)' },
+              { pts: 3, icon: '🔥', titulo: 'Ganador + Goles / Empate', desc: 'Acertaste ganador y goles de un equipo, o acertaste empate (ej. predijiste 1-1, fue 2-2).' },
+              { pts: 2, icon: '✅', titulo: 'Solo tendencia correcta', desc: 'Predijiste 2-1, fue 3-0 (solo acertaste ganador)' },
               { pts: 0, icon: '❌', titulo: 'Incorrecto', desc: 'Predijiste 2-1, fue 0-1' },
             ].map(item => (
               <div key={item.pts} style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '0.75rem', padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -780,7 +864,7 @@ export default function PartidosPage() {
               </div>
             ))}
             <button onClick={() => setModalPuntosGrupos(false)} style={{ backgroundColor: 'var(--accent)', color: 'var(--text-primary)', border: 'none', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', width: '100%' }}>
-              ¡Entendido! 🚀
+              ¡Entendido! 👍
             </button>
           </div>
         </div>
@@ -797,8 +881,8 @@ export default function PartidosPage() {
             </div>
             {[
               { pts: 5, icon: '🎯', titulo: 'Resultado Exacto', desc: 'Predijiste 2-1 y fue 2-1' },
-              { pts: 3, icon: '✅', titulo: 'Ganador + Goles de un equipo', desc: 'Predijiste 2-1, fue 2-0 (ganador y goles locales)' },
-              { pts: 2, icon: '👍', titulo: 'Solo tendencia correcta', desc: 'Predijiste 2-1, fue 3-0 (solo acertaste ganador)' },
+              { pts: 3, icon: '🔥', titulo: 'Ganador + Goles / Empate', desc: 'Acertaste ganador y goles de un equipo, o acertaste empate (ej. predijiste 1-1, fue 2-2).' },
+              { pts: 2, icon: '✅', titulo: 'Solo tendencia correcta', desc: 'Predijiste 2-1, fue 3-0 (solo acertaste ganador)' },
               { pts: 0, icon: '❌', titulo: 'Incorrecto', desc: 'Predijiste 2-1, fue 0-1' },
             ].map(item => (
               <div key={item.pts} style={{ backgroundColor: 'var(--bg-secondary)', borderRadius: '0.75rem', padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -823,7 +907,7 @@ export default function PartidosPage() {
               </p>
             </div>
             <button onClick={() => setModalPuntosKnockout(false)} style={{ backgroundColor: 'var(--accent)', color: 'var(--text-primary)', border: 'none', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', width: '100%' }}>
-              ¡Entendido! 🚀
+              ¡Entendido! 👍
             </button>
           </div>
         </div>
