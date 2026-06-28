@@ -11,8 +11,6 @@ export default function DashboardPage() {
   const [rooms, setRooms] = useState([])
   const [loading, setLoading] = useState(true)
 
-
-
   async function loadData() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return router.push('/')
@@ -46,19 +44,19 @@ export default function DashboardPage() {
     setLoading(false)
   }
 
-useEffect(() => {
-  let mounted = true
+  useEffect(() => {
+    let mounted = true
 
-  async function init() {
-    await loadData()
-  }
+    async function init() {
+      await loadData()
+    }
 
-  if (mounted) init()
+    if (mounted) init()
 
-  return () => {
-    mounted = false
-  }
-}, [])
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -263,11 +261,7 @@ useEffect(() => {
                     color: 'var(--text-secondary)',
                     fontSize: '0.8rem',
                   }}>
-                    Código: {member.rooms.code} · {
-                      member.rooms.phase === 'group' ? '⚽ Fase de Grupos' :
-                      member.rooms.phase === 'knockout' ? '🏆 Eliminatorias' :
-                      '🎉 Finalizado'
-                    }
+                    Código: {member.rooms.code}
                   </p>
                 </div>
                 <div style={{ textAlign: 'right' }}>
