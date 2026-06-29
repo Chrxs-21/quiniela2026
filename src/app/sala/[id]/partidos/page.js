@@ -15,6 +15,9 @@ const RONDAS_LABEL = {
   'Final': 'Final',
 }
 
+// TEMPORAL: Cambiar a false para reactivar el bloqueo de partidos una vez el amigo complete sus predicciones
+const BYPASS_LOCKS = true
+
 export default function PartidosPage() {
   const supabase = createClient()
   const router = useRouter()
@@ -154,9 +157,9 @@ export default function PartidosPage() {
   }, [tab])
 
   function abrirModal(partido) {
-    if (!knockoutUnlocked && partido.phase === 'knockout') return
+    if (!knockoutUnlocked && partido.phase === 'knockout' && !BYPASS_LOCKS) return
     const estado = getEstadoPartido(partido)
-    if (estado === 'locked' || estado === 'finished') return
+    if ((estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS) return
     const pred = predicciones[partido.id]
     setPredHome(pred ? pred.pred_home_score : 0)
     setPredAway(pred ? pred.pred_away_score : 0)
@@ -225,9 +228,9 @@ export default function PartidosPage() {
   }
 
   function abrirModalKnockout(partido) {
-    if (!knockoutUnlocked) return
+    if (!knockoutUnlocked && !BYPASS_LOCKS) return
     const estado = getEstadoPartido(partido)
-    if (estado === 'locked' || estado === 'finished') return
+    if ((estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS) return
 
     const homeResuelto = resolverEquipo(partido.home_team)
     const awayResuelto = resolverEquipo(partido.away_team)
@@ -560,7 +563,7 @@ export default function PartidosPage() {
                     {partidosJornada?.map(partido => {
                       const estado = getEstadoPartido(partido)
                       const pred = predicciones[partido.id]
-                      const bloqueado = estado === 'locked' || estado === 'finished'
+                      const bloqueado = (estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS
 
                       return (
                         <div
@@ -636,7 +639,7 @@ export default function PartidosPage() {
                         const homeResuelto = resolverEquipo(partido.home_team)
                         const awayResuelto = resolverEquipo(partido.away_team)
                         const tienePred = !!predK
-                        const bloqueado = !knockoutUnlocked || estado === 'locked' || estado === 'finished'
+                        const bloqueado = (!knockoutUnlocked || estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS
                         const borderColor = estado === 'finished' ? '#4a3872' : tienePred ? '#166534' : 'var(--border)'
 
                         return (
@@ -716,7 +719,7 @@ export default function PartidosPage() {
                       const homeResuelto = resolverEquipo(partido.home_team)
                       const awayResuelto = resolverEquipo(partido.away_team)
                       const tienePred = !!predK
-                      const bloqueado = !knockoutUnlocked || estado === 'locked' || estado === 'finished'
+                      const bloqueado = (!knockoutUnlocked || estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS
                       const borderColor = estado === 'finished' ? '#4a3872' : tienePred ? '#166534' : 'var(--border)'
 
                       return (
