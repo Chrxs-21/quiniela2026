@@ -15,8 +15,7 @@ const RONDAS_LABEL = {
   'Final': 'Final',
 }
 
-// TEMPORAL: Cambiar a false para reactivar el bloqueo de partidos una vez el amigo complete sus predicciones
-const BYPASS_LOCKS = true
+const BYPASS_LOCKS = false
 
 export default function PartidosPage() {
   const supabase = createClient()
