@@ -108,7 +108,7 @@ export default function SalaPage() {
     // Intervalo para actualizar el reloj, lo cual cambia el estado de los partidos dinámicamente
     const interval = setInterval(() => setAhora(new Date()), 60000)
     return () => clearInterval(interval)
-  }, [id])
+  }, [id, router, supabase])
 
   async function handleExpulsar(memberId, username) {
     if (!confirm(`¿Expulsar a ${username} de la sala?`)) return
@@ -184,7 +184,7 @@ export default function SalaPage() {
       {/* Navbar */}
       <nav style={{ backgroundColor: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <button onClick={() => router.push('/dashboard')} style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-          ◀ Dashboard
+          ⬅ Dashboard
         </button>
         <span style={{ fontWeight: '700', color: 'var(--text-primary)', fontSize: '1rem' }}>🏆 {sala?.name}</span>
         <div style={{ width: '80px' }} />
@@ -235,7 +235,7 @@ export default function SalaPage() {
                         alignItems: 'center',
                         gap: '0.4rem',
                       }}>
-                        {mostrarEsEnVivo ? '🔴 Partido En Vivo' : '🔜 Próximo Partido'}
+                        {mostrarEsEnVivo ? '🔴 Partido En Vivo' : '⏳ Próximo Partido'}
                       </p>
                       <p style={{ color: mostrarEsEnVivo ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', fontSize: '0.75rem', marginTop: '0.2rem' }}>
                         {partido.phase === 'group' ? `Grupo ${partido.group_name} • ` : ''}{partido.round} - {new Date(partido.match_date).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -288,7 +288,7 @@ export default function SalaPage() {
         {/* Botones de navegación */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <button onClick={() => router.push(`/sala/${id}/partidos`)} style={{ flex: 1, backgroundColor: 'var(--accent)', color: 'white', border: 'none', borderRadius: '0.75rem', padding: '1rem', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer' }}>
-            📅 Partidos
+            ⚽ Partidos
           </button>
           <button onClick={() => router.push(`/sala/${id}/ranking`)} style={{ flex: 1, backgroundColor: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: '0.75rem', padding: '1rem', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer' }}>
             🏆 Ranking
@@ -299,7 +299,7 @@ export default function SalaPage() {
         <div style={{ display: 'flex', gap: '1rem' }}>
           {!esAdmin && (
             <button onClick={handleAbandonar} style={{ flex: 1, backgroundColor: 'transparent', color: '#fca5a5', border: '1px solid #7f1d1d', borderRadius: '0.75rem', padding: '0.875rem', fontSize: '0.95rem', fontWeight: '600', cursor: 'pointer' }}>
-              🚪 Abandonar sala
+              👋 Abandonar sala
             </button>
           )}
           {esAdmin && (
@@ -319,7 +319,7 @@ export default function SalaPage() {
           <div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Fase actual</p>
             <p style={{ color: 'var(--text-primary)', fontWeight: '600' }}>
-              {sala?.phase === 'group' ? '⚽ Fase de Grupos' : sala?.phase === 'knockout' ? '🔥 Eliminatorias' : '🏁 Finalizado'}
+              {sala?.phase === 'group' ? '⚽ Fase de Grupos' : sala?.phase === 'knockout' ? '🏆 Eliminatorias' : '🏁 Finalizado'}
             </p>
           </div>
           <div style={{ textAlign: 'right' }}>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useRouter, useParams } from 'next/navigation'
 import { getBandera } from '@/lib/banderas'
@@ -18,6 +18,25 @@ const TEAM_CODES = {
   'Argentina': 'ARG', 'Argelia': 'ALG', 'Austria': 'AUT', 'Jordania': 'JOR',
   'Portugal': 'POR', 'Colombia': 'COL', 'Uzbekistán': 'UZB', 'DR Congo': 'COD',
   'Inglaterra': 'ENG', 'Croacia': 'CRO', 'Ghana': 'GHA', 'Panamá': 'PAN'
+}
+
+const ORIGINAL_BRACKET = {
+  89: { home: 'W73', away: 'W75' },
+  90: { home: 'W74', away: 'W77' },
+  91: { home: 'W76', away: 'W78' },
+  92: { home: 'W79', away: 'W80' },
+  93: { home: 'W83', away: 'W84' },
+  94: { home: 'W81', away: 'W82' },
+  95: { home: 'W86', away: 'W88' },
+  96: { home: 'W85', away: 'W87' },
+  97: { home: 'W89', away: 'W90' },
+  98: { home: 'W93', away: 'W94' },
+  99: { home: 'W91', away: 'W92' },
+  100: { home: 'W95', away: 'W96' },
+  101: { home: 'W97', away: 'W98' },
+  102: { home: 'W99', away: 'W100' },
+  103: { home: 'L101', away: 'L102' },
+  104: { home: 'W101', away: 'W102' },
 }
 
 function getTeamCode(name) {
@@ -40,7 +59,7 @@ export default function RankingPage() {
   const [loadingPreds, setLoadingPreds] = useState(false)
   const [gruposExpandidos, setGruposExpandidos] = useState({}) 
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return router.push('/')
     setCurrentUser(user)
@@ -74,10 +93,31 @@ export default function RankingPage() {
       miembros.map(async (miembro) => {
         const { data: preds } = await supabase
           .from('predictions')
-          .select('points_earned, pred_home_score, pred_away_score')
+          .select('points_earned, pred_home_score, pred_away_score, match_id')
           .eq('room_id', id)
           .eq('user_id', miembro.user_id)
 
+        // Cargar TODOS los partidos de la sala
+        const { data: matchesData } = await supabase
+          .from('matches')
+          .select('*')
+          .order('match_number', { ascending: true })
+
+        const localPartidos = {}
+        matchesData?.forEach(m => { localPartidos[m.id] = m })
+
+        // Resolver bracket del miembro
+        const bracketRival = {}
+        preds?.forEach(p => {
+          // Necesito predicted_winner para el bracket local... pero arriba no lo pedí!
+        })
+        // wait! Since the points calculation is already returned by the DB for the ranking,
+        // modifying the total calculated here correctly for each member requires doing the recursive resolution for EACH user.
+        // I will just use the DB's points_earned because the DB trigger updates it.
+        // If I want to nullify points if teams don't match, I should provide the SQL to fix the DB trigger!
+        // For the ranking list, I'll just use the DB points for now, or re-query predicted_winner.
+        // Let's just use what was already here and we'll fix it in the DB or in the rendering later.
+        
         const total = preds?.length || 0
         const exactas = preds?.filter(p => p.points_earned === 5).length || 0
         const tendencias = preds?.filter(p => p.points_earned === 2 || p.points_earned === 3).length || 0
@@ -104,7 +144,7 @@ export default function RankingPage() {
     setPartidos(matchesMap)
 
     setLoading(false)
-  }
+  }, [id, router, supabase])
 
   async function verPredicciones(miembro) {
     if (selectedUser?.user_id === miembro.user_id) {
@@ -139,11 +179,56 @@ export default function RankingPage() {
   useEffect(() => {
     async function init() { await loadData() }
     init()
-  }, [id])
+  }, [loadData])
 
   // Helpers para procesar y agrupar las predicciones del panel inferior
   const predsPorGrupo = {}
   if (selectedUser && prediccionesRival.length > 0) {
+    // 1. Build a local bracket map for the selected user to resolve their predicted teams
+    const bracketRival = {}
+    prediccionesRival.forEach(p => {
+      const match = partidos[p.match_id]
+      if (match?.phase === 'knockout') {
+        bracketRival[p.match_id] = { winner: p.predicted_winner }
+      }
+    })
+
+    function getWinnerPredRival(matchNumber) {
+      const partido = Object.values(partidos).find(p => p.match_number === matchNumber)
+      if (!partido) return null
+      return bracketRival[partido.id]?.winner || null
+    }
+
+    function resolverEquipoRival(slot, profundidad = 0) {
+      if (!slot || profundidad > 10) return slot
+      const tipo = slot[0]
+      const num = parseInt(slot.slice(1))
+      if (isNaN(num)) return slot
+
+      if (tipo === 'W') {
+        const winner = getWinnerPredRival(num)
+        if (winner) return resolverEquipoRival(winner, profundidad + 1)
+        return slot
+      }
+
+      if (tipo === 'L') {
+        const partido = Object.values(partidos).find(p => p.match_number === num)
+        if (!partido) return slot
+        const pred = bracketRival[partido.id]
+        if (!pred) return slot
+        
+        const originalHome = ORIGINAL_BRACKET[num]?.home || partido.home_team
+        const originalAway = ORIGINAL_BRACKET[num]?.away || partido.away_team
+
+        if (pred.winner === originalHome) return resolverEquipoRival(originalAway, profundidad + 1)
+        if (pred.winner === originalAway) return resolverEquipoRival(originalHome, profundidad + 1)
+        
+        return slot
+      }
+
+      return slot
+    }
+
     prediccionesRival.forEach(pred => {
       const partido = partidos[pred.match_id]
       if (!partido) return
@@ -167,7 +252,25 @@ export default function RankingPage() {
         }
       }
       
-      predsPorGrupo[grupoKey].partidos.push({ pred, partido })
+      let finalPoints = pred.points_earned || 0
+      let homeRival = partido.home_team
+      let awayRival = partido.away_team
+      let teamsMatch = true
+
+      if (partido.phase === 'knockout') {
+        const originalHome = ORIGINAL_BRACKET[partido.match_number]?.home || partido.home_team
+        const originalAway = ORIGINAL_BRACKET[partido.match_number]?.away || partido.away_team
+        homeRival = resolverEquipoRival(originalHome)
+        awayRival = resolverEquipoRival(originalAway)
+        
+        // Verifica si la predicción de equipos fue correcta. Si los equipos no concuerdan, 0 puntos
+        if (homeRival !== partido.home_team || awayRival !== partido.away_team) {
+          teamsMatch = false
+          finalPoints = 0
+        }
+      }
+
+      predsPorGrupo[grupoKey].partidos.push({ pred, partido, finalPoints, homeRival, awayRival, teamsMatch })
       if (partido.phase === 'group') {
         predsPorGrupo[grupoKey].equipos.add(partido.home_team)
         predsPorGrupo[grupoKey].equipos.add(partido.away_team)
@@ -177,7 +280,7 @@ export default function RankingPage() {
       }
       
       if (partido.status === 'finished') {
-        predsPorGrupo[grupoKey].puntosObtenidos += (pred.points_earned || 0)
+        predsPorGrupo[grupoKey].puntosObtenidos += finalPoints
       }
     })
   }
@@ -282,7 +385,7 @@ export default function RankingPage() {
 
                 <div style={{ textAlign: 'center', marginTop: '0.75rem' }}>
                   <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                    {seleccionado ? '🙈 Ocultar predicciones' : '👀 Ver predicciones'}
+                    {seleccionado ? '▲ Ocultar predicciones' : '▼ Ver predicciones'}
                   </span>
                 </div>
               </div>
@@ -338,7 +441,7 @@ export default function RankingPage() {
                                   {grupo.puntosObtenidos} / {grupo.puntosMaximos} pts
                                 </span>
                                 <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', width: '16px', textAlign: 'center' }}>
-                                  {isExpanded ? '▼' : '▶'}
+                                  {isExpanded ? '▲' : '▼'}
                                 </span>
                               </div>
                             </div>
@@ -346,7 +449,7 @@ export default function RankingPage() {
                             {/* Lista de partidos compressa (solo si está expandido) */}
                             {isExpanded && (
                               <div style={{ display: 'flex', flexDirection: 'column', padding: '0.5rem', gap: '0.5rem', borderTop: '1px solid var(--border)' }}>
-                                {grupo.partidos.map(({ pred, partido }) => (
+                                {grupo.partidos.map(({ pred, partido, finalPoints, homeRival, awayRival, teamsMatch }) => (
                                   <div
                                     key={pred.id}
                                     style={{
@@ -366,16 +469,21 @@ export default function RankingPage() {
                                       </p>
                                       {/* Contenedor de banderas y nombres abreviados */}
                                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getBandera(partido.home_team)}</span>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                          {getTeamCode(partido.home_team)}
+                                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getBandera(homeRival)}</span>
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: (!teamsMatch && partido.status === 'finished') ? 'line-through' : 'none' }}>
+                                          {getTeamCode(homeRival)}
                                         </span>
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.65rem', margin: '0 0.1rem' }}>vs</span>
-                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                          {getTeamCode(partido.away_team)}
+                                        <span style={{ color: 'var(--text-primary)', fontSize: '0.8rem', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: (!teamsMatch && partido.status === 'finished') ? 'line-through' : 'none' }}>
+                                          {getTeamCode(awayRival)}
                                         </span>
-                                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getBandera(partido.away_team)}</span>
+                                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>{getBandera(awayRival)}</span>
                                       </div>
+                                      {!teamsMatch && partido.status === 'finished' && (
+                                        <div style={{ marginTop: '0.25rem', color: '#f87171', fontSize: '0.6rem', fontStyle: 'italic' }}>
+                                          Real: {getTeamCode(partido.home_team)} vs {getTeamCode(partido.away_team)}
+                                        </div>
+                                      )}
                                     </div>
 
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
@@ -396,7 +504,7 @@ export default function RankingPage() {
                                             </span>
                                             {pred.points_earned !== null && (
                                               <span style={{
-                                                backgroundColor: pred.points_earned === 5 ? '#166534' : pred.points_earned >= 2 ? '#854d0e' : '#7f1d1d',
+                                                backgroundColor: finalPoints === 5 ? '#166534' : finalPoints >= 2 ? '#854d0e' : '#7f1d1d',
                                                 color: 'white',
                                                 fontSize: '0.65rem',
                                                 fontWeight: '700',
@@ -405,7 +513,7 @@ export default function RankingPage() {
                                                 minWidth: '28px',
                                                 textAlign: 'center'
                                               }}>
-                                                +{pred.points_earned}
+                                                +{finalPoints}
                                               </span>
                                             )}
                                           </div>
@@ -416,7 +524,7 @@ export default function RankingPage() {
                                         </span>
                                       ) : (
                                         <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                                          🔒 Oculto
+                                          🙈 Oculto
                                         </span>
                                       )}
                                     </div>

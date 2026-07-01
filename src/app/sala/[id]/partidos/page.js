@@ -15,7 +15,27 @@ const RONDAS_LABEL = {
   'Final': 'Final',
 }
 
-const BYPASS_LOCKS = false
+const ORIGINAL_BRACKET = {
+  89: { home: 'W73', away: 'W75' },
+  90: { home: 'W74', away: 'W77' },
+  91: { home: 'W76', away: 'W78' },
+  92: { home: 'W79', away: 'W80' },
+  93: { home: 'W83', away: 'W84' },
+  94: { home: 'W81', away: 'W82' },
+  95: { home: 'W86', away: 'W88' },
+  96: { home: 'W85', away: 'W87' },
+  97: { home: 'W89', away: 'W90' },
+  98: { home: 'W93', away: 'W94' },
+  99: { home: 'W91', away: 'W92' },
+  100: { home: 'W95', away: 'W96' },
+  101: { home: 'W97', away: 'W98' },
+  102: { home: 'W99', away: 'W100' },
+  103: { home: 'L101', away: 'L102' },
+  104: { home: 'W101', away: 'W102' },
+}
+
+// TEMPORAL: Cambiar a false para reactivar el bloqueo de partidos una vez el amigo complete sus predicciones
+const BYPASS_LOCKS = true
 
 export default function PartidosPage() {
   const supabase = createClient()
@@ -217,8 +237,11 @@ export default function PartidosPage() {
       const pred = bracketPreds[partido.id]
       if (!pred) return slot
       
-      if (pred.winner === partido.home_team) return resolverEquipo(partido.away_team, profundidad + 1)
-      if (pred.winner === partido.away_team) return resolverEquipo(partido.home_team, profundidad + 1)
+      const originalHome = ORIGINAL_BRACKET[num]?.home || partido.home_team
+      const originalAway = ORIGINAL_BRACKET[num]?.away || partido.away_team
+
+      if (pred.winner === originalHome) return resolverEquipo(originalAway, profundidad + 1)
+      if (pred.winner === originalAway) return resolverEquipo(originalHome, profundidad + 1)
       
       return slot
     }
@@ -231,8 +254,11 @@ export default function PartidosPage() {
     const estado = getEstadoPartido(partido)
     if ((estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS) return
 
-    const homeResuelto = resolverEquipo(partido.home_team)
-    const awayResuelto = resolverEquipo(partido.away_team)
+    const originalHome = ORIGINAL_BRACKET[partido.match_number]?.home || partido.home_team
+    const originalAway = ORIGINAL_BRACKET[partido.match_number]?.away || partido.away_team
+
+    const homeResuelto = resolverEquipo(originalHome)
+    const awayResuelto = resolverEquipo(originalAway)
     const homeEsSlot = homeResuelto.startsWith('W') || homeResuelto.startsWith('L')
     const awayEsSlot = awayResuelto.startsWith('W') || awayResuelto.startsWith('L')
 
@@ -283,7 +309,9 @@ export default function PartidosPage() {
 
   async function handleGuardarKnockout() {
     if (!modalKnockout) return
-    const ganador = ganadorManual || calcularGanadorAuto(predHomeK, predAwayK, modalKnockout.home_team, modalKnockout.away_team)
+    const originalHome = ORIGINAL_BRACKET[modalKnockout.match_number]?.home || modalKnockout.home_team
+    const originalAway = ORIGINAL_BRACKET[modalKnockout.match_number]?.away || modalKnockout.away_team
+    const ganador = ganadorManual || calcularGanadorAuto(predHomeK, predAwayK, originalHome, originalAway)
     if (predHomeK === predAwayK && !ganadorManual) return
 
     setGuardandoKnockout(true)
@@ -304,6 +332,8 @@ export default function PartidosPage() {
         pred_home_score: predHomeK,
         pred_away_score: predAwayK,
         predicted_winner: ganador,
+        pred_home_team: resolverEquipo(originalHome),
+        pred_away_team: resolverEquipo(originalAway),
       }).eq('id', existing.id)
     } else {
       await supabase.from('predictions').insert({
@@ -313,6 +343,8 @@ export default function PartidosPage() {
         pred_home_score: predHomeK,
         pred_away_score: predAwayK,
         predicted_winner: ganador,
+        pred_home_team: resolverEquipo(originalHome),
+        pred_away_team: resolverEquipo(originalAway),
       })
     }
 
@@ -635,8 +667,10 @@ export default function PartidosPage() {
                       {knockout[ronda]?.map(partido => {
                         const estado = getEstadoPartido(partido)
                         const predK = bracketPreds[partido.id]
-                        const homeResuelto = resolverEquipo(partido.home_team)
-                        const awayResuelto = resolverEquipo(partido.away_team)
+                        const originalHome = ORIGINAL_BRACKET[partido.match_number]?.home || partido.home_team
+                        const originalAway = ORIGINAL_BRACKET[partido.match_number]?.away || partido.away_team
+                        const homeResuelto = resolverEquipo(originalHome)
+                        const awayResuelto = resolverEquipo(originalAway)
                         const tienePred = !!predK
                         const bloqueado = (!knockoutUnlocked || estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS
                         const borderColor = estado === 'finished' ? '#4a3872' : tienePred ? '#166534' : 'var(--border)'
@@ -654,22 +688,22 @@ export default function PartidosPage() {
                               </div>
 
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                                <span style={{ color: predK?.winner === partido.home_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.home_team ? '700' : '600' }}>
-                                  {predK?.winner === partido.home_team && '✓ '}{homeResuelto}
+                                <span style={{ color: predK?.winner === originalHome ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === originalHome ? '700' : '600' }}>
+                                  {predK?.winner === originalHome && '✓ '}{homeResuelto}
                                 </span>
                                 {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.home}</span>}
                               </div>
                               <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ color: predK?.winner === partido.away_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.away_team ? '700' : '600' }}>
-                                  {predK?.winner === partido.away_team && '✓ '}{awayResuelto}
+                                <span style={{ color: predK?.winner === originalAway ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === originalAway ? '700' : '600' }}>
+                                  {predK?.winner === originalAway && '✓ '}{awayResuelto}
                                 </span>
                                 {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.away}</span>}
                               </div>
                               <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
                                 {!tienePred && knockoutUnlocked && estado !== 'locked' && estado !== 'finished' && (() => {
-                                  const homeR = resolverEquipo(partido.home_team)
-                                  const awayR = resolverEquipo(partido.away_team)
+                                  const homeR = resolverEquipo(originalHome)
+                                  const awayR = resolverEquipo(originalAway)
                                   const pendiente = homeR.startsWith('W') || homeR.startsWith('L') || awayR.startsWith('W') || awayR.startsWith('L')
                                   return pendiente
                                     ? <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>⏳ Equipos por definir</span>
@@ -715,8 +749,10 @@ export default function PartidosPage() {
                     {knockout['Third Place']?.map(partido => {
                       const estado = getEstadoPartido(partido)
                       const predK = bracketPreds[partido.id]
-                      const homeResuelto = resolverEquipo(partido.home_team)
-                      const awayResuelto = resolverEquipo(partido.away_team)
+                      const originalHome = ORIGINAL_BRACKET[partido.match_number]?.home || partido.home_team
+                      const originalAway = ORIGINAL_BRACKET[partido.match_number]?.away || partido.away_team
+                      const homeResuelto = resolverEquipo(originalHome)
+                      const awayResuelto = resolverEquipo(originalAway)
                       const tienePred = !!predK
                       const bloqueado = (!knockoutUnlocked || estado === 'locked' || estado === 'finished') && !BYPASS_LOCKS
                       const borderColor = estado === 'finished' ? '#4a3872' : tienePred ? '#166534' : 'var(--border)'
@@ -732,22 +768,22 @@ export default function PartidosPage() {
                           </div>
 
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-                            <span style={{ color: predK?.winner === partido.home_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.home_team ? '700' : '600' }}>
-                              {predK?.winner === partido.home_team && '✓ '}{homeResuelto}
+                            <span style={{ color: predK?.winner === originalHome ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === originalHome ? '700' : '600' }}>
+                              {predK?.winner === originalHome && '✓ '}{homeResuelto}
                             </span>
                             {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.home}</span>}
                           </div>
                           <div style={{ height: '1px', backgroundColor: 'var(--border)', margin: '0.4rem 0' }} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ color: predK?.winner === partido.away_team ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === partido.away_team ? '700' : '600' }}>
-                              {predK?.winner === partido.away_team && '✓ '}{awayResuelto}
+                            <span style={{ color: predK?.winner === originalAway ? 'var(--success)' : 'var(--text-primary)', fontSize: '0.8rem', fontWeight: predK?.winner === originalAway ? '700' : '600' }}>
+                              {predK?.winner === originalAway && '✓ '}{awayResuelto}
                             </span>
                             {tienePred && <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '0.9rem' }}>{predK.away}</span>}
                           </div>
                           <div style={{ marginTop: '0.5rem', textAlign: 'center' }}>
                             {!tienePred && knockoutUnlocked && estado !== 'locked' && estado !== 'finished' && (() => {
-                              const homeR = resolverEquipo(partido.home_team)
-                              const awayR = resolverEquipo(partido.away_team)
+                              const homeR = resolverEquipo(originalHome)
+                              const awayR = resolverEquipo(originalAway)
                               const pendiente = homeR.startsWith('W') || homeR.startsWith('L') || awayR.startsWith('W') || awayR.startsWith('L')
                               return pendiente
                                 ? <span style={{ color: 'var(--muted)', fontSize: '0.7rem' }}>⏳ Equipos por definir</span>
@@ -774,14 +810,14 @@ export default function PartidosPage() {
           <div onClick={e => e.stopPropagation()} style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '1.5rem', padding: '2rem', width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             <div style={{ textAlign: 'center' }}>
               <p style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1.1rem' }}>
-                {resolverEquipo(modalKnockout.home_team)} vs {resolverEquipo(modalKnockout.away_team)}
+                {resolverEquipo(ORIGINAL_BRACKET[modalKnockout.match_number]?.home || modalKnockout.home_team)} vs {resolverEquipo(ORIGINAL_BRACKET[modalKnockout.match_number]?.away || modalKnockout.away_team)}
               </p>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem' }}>
               {[
-                { value: predHomeK, setValue: (v) => { setPredHomeK(v); setGanadorManual(null) }, label: resolverEquipo(modalKnockout.home_team) },
-                { value: predAwayK, setValue: (v) => { setPredAwayK(v); setGanadorManual(null) }, label: resolverEquipo(modalKnockout.away_team) },
+                { value: predHomeK, setValue: (v) => { setPredHomeK(v); setGanadorManual(null) }, label: resolverEquipo(ORIGINAL_BRACKET[modalKnockout.match_number]?.home || modalKnockout.home_team) },
+                { value: predAwayK, setValue: (v) => { setPredAwayK(v); setGanadorManual(null) }, label: resolverEquipo(ORIGINAL_BRACKET[modalKnockout.match_number]?.away || modalKnockout.away_team) },
               ].map((equipo, i) => (
                 <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.25rem' }}>
@@ -800,8 +836,8 @@ export default function PartidosPage() {
                 <p style={{ color: 'var(--warning)', fontSize: '0.82rem', fontWeight: '600', textAlign: 'center' }}>⚠️ Empate en 120min 👉 ¿Quién avanza en tiempo extra?</p>
                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                   {[
-                    { slot: modalKnockout.home_team, name: resolverEquipo(modalKnockout.home_team) },
-                    { slot: modalKnockout.away_team, name: resolverEquipo(modalKnockout.away_team) }
+                    { slot: ORIGINAL_BRACKET[modalKnockout.match_number]?.home || modalKnockout.home_team, name: resolverEquipo(ORIGINAL_BRACKET[modalKnockout.match_number]?.home || modalKnockout.home_team) },
+                    { slot: ORIGINAL_BRACKET[modalKnockout.match_number]?.away || modalKnockout.away_team, name: resolverEquipo(ORIGINAL_BRACKET[modalKnockout.match_number]?.away || modalKnockout.away_team) }
                   ].map(equipo => (
                     <button
                       key={equipo.slot}
