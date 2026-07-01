@@ -499,9 +499,16 @@ export default function RankingPage() {
                                           {/* Tu Predicción */}
                                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                             <span style={{ color: 'var(--accent)', fontSize: '0.6rem', textTransform: 'uppercase', width: '22px' }}>Pred:</span>
-                                            <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1rem', backgroundColor: 'var(--bg-secondary)', padding: '0.1rem 0.3rem', borderRadius: '0.25rem' }}>
-                                              {pred.pred_home_score} - {pred.pred_away_score}
-                                            </span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'center' }}>
+                                              <span style={{ color: 'var(--text-primary)', fontWeight: '700', fontSize: '1rem', backgroundColor: 'var(--bg-secondary)', padding: '0.1rem 0.3rem', borderRadius: '0.25rem' }}>
+                                                {pred.pred_home_score} - {pred.pred_away_score}
+                                              </span>
+                                              {partido.phase === 'knockout' && pred.pred_home_score === pred.pred_away_score && pred.predicted_winner && (
+                                                <span style={{ color: 'var(--accent)', fontSize: '0.55rem', fontWeight: 'bold' }}>
+                                                  Pasa: {getTeamCode(resolverEquipoRival(pred.predicted_winner))}
+                                                </span>
+                                              )}
+                                            </div>
                                             {pred.points_earned !== null && (
                                               <span style={{
                                                 backgroundColor: finalPoints === 5 ? '#166534' : finalPoints >= 2 ? '#854d0e' : '#7f1d1d',
