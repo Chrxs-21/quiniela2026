@@ -183,6 +183,8 @@ export default function RankingPage() {
 
   // Helpers para procesar y agrupar las predicciones del panel inferior
   const predsPorGrupo = {}
+  let resolverEquipoRivalRef = null
+
   if (selectedUser && prediccionesRival.length > 0) {
     // 1. Build a local bracket map for the selected user to resolve their predicted teams
     const bracketRival = {}
@@ -228,6 +230,8 @@ export default function RankingPage() {
 
       return slot
     }
+
+    resolverEquipoRivalRef = resolverEquipoRival
 
     prediccionesRival.forEach(pred => {
       const partido = partidos[pred.match_id]
@@ -505,7 +509,7 @@ export default function RankingPage() {
                                               </span>
                                               {partido.phase === 'knockout' && pred.pred_home_score === pred.pred_away_score && pred.predicted_winner && (
                                                 <span style={{ color: 'var(--accent)', fontSize: '0.55rem', fontWeight: 'bold' }}>
-                                                  Pasa: {getTeamCode(resolverEquipoRival(pred.predicted_winner))}
+                                                  Pasa: {getTeamCode(resolverEquipoRivalRef ? resolverEquipoRivalRef(pred.predicted_winner) : pred.predicted_winner)}
                                                 </span>
                                               )}
                                             </div>
