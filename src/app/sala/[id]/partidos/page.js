@@ -105,11 +105,14 @@ export default function PartidosPage() {
       if (knockoutByRound[currentRound] && knockoutByRound[prevRound]) {
         const expectedOrder = []
         knockoutByRound[currentRound].forEach(match => {
-          if (match.home_team && match.home_team.startsWith('W')) {
-            expectedOrder.push(parseInt(match.home_team.substring(1), 10))
+          const originalHome = ORIGINAL_BRACKET[match.match_number]?.home || match.home_team
+          const originalAway = ORIGINAL_BRACKET[match.match_number]?.away || match.away_team
+
+          if (originalHome && originalHome.startsWith('W')) {
+            expectedOrder.push(parseInt(originalHome.substring(1), 10))
           }
-          if (match.away_team && match.away_team.startsWith('W')) {
-            expectedOrder.push(parseInt(match.away_team.substring(1), 10))
+          if (originalAway && originalAway.startsWith('W')) {
+            expectedOrder.push(parseInt(originalAway.substring(1), 10))
           }
         })
         
