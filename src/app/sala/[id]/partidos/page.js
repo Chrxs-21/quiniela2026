@@ -16,8 +16,8 @@ const RONDAS_LABEL = {
 }
 
 const ORIGINAL_BRACKET = {
-  89: { home: 'W73', away: 'W75' },
-  90: { home: 'W74', away: 'W77' },
+  90: { home: 'W73', away: 'W75' },
+  89: { home: 'W74', away: 'W77' },
   91: { home: 'W76', away: 'W78' },
   92: { home: 'W79', away: 'W80' },
   93: { home: 'W83', away: 'W84' },
