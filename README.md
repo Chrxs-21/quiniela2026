@@ -169,7 +169,3 @@ El proyecto está optimizado para desplegarse fácilmente en **Vercel**:
 3. Haz clic en **Deploy**. Cada `push` a la rama principal actualizará automáticamente el entorno productivo.
 
 ---
-
-## 👨‍💻 Autor
-Desarrollado con pasión por el fútbol y la ingeniería de software.  
-*Contacto / LinkedIn:* [Tu Perfil] | *GitHub:* [@tu-usuario](https://github.com/tu-usuario)
